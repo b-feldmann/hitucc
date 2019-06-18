@@ -16,7 +16,6 @@ import de.hpi.hit_ucc.HittingSetOracle;
 import de.hpi.hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
 import de.hpi.hit_ucc.actors.messages.IWorkMessage;
 import de.hpi.hit_ucc.actors.messages.TaskMessage;
-import de.hpi.hit_ucc.actors.messages.TreeOracleMessage;
 import de.hpi.hit_ucc.model.Row;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -39,6 +38,7 @@ public class PeerWorker extends AbstractActor {
 
 	private LinkedHashSet<BitSet> uniqueDifferenceSets = new LinkedHashSet<>();
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
+	private List<BitSet> discoveredUCCs = new ArrayList<>();
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);
@@ -77,9 +77,11 @@ public class PeerWorker extends AbstractActor {
 				.match(AskForMergeMessage.class, this::handle)
 				.match(AcceptMergeMessage.class, this::handle)
 				.match(DeclineMergeMessage.class, this::handle)
-				.match(DifferenceSetDiscoveryStateMessage.class, this::handle)
+				.match(WorkerStateChangedMessage.class, this::handle)
 				.match(MergeDifferenceSetsMessage.class, this::handle)
 				.match(TreeOracleMessage.class, this::handle)
+				.match(UCCDiscoveredMessage.class, this::handle)
+				.match(ReportAndShutdownMessage.class, this::handle)
 				.matchAny(object -> this.log.info("Meh.. Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
@@ -233,7 +235,7 @@ public class PeerWorker extends AbstractActor {
 
 		this.log.info("Received Accept Merge Message from {}", this.sender().path().name());
 		this.sender().tell(new MergeDifferenceSetsMessage(minimalDifferenceSets), this.self());
-		broadcastAndSetState(WorkerState.DONE);
+		broadcastAndSetState(WorkerState.DONE_MERGING);
 	}
 
 	private void handle(DeclineMergeMessage message) {
@@ -255,49 +257,51 @@ public class PeerWorker extends AbstractActor {
 		broadcastAndSetState(WorkerState.READY_TO_MERGE);
 	}
 
-	private void handle(DifferenceSetDiscoveryStateMessage message) {
+	private void handle(WorkerStateChangedMessage message) {
 //		this.log.info("Received New State Message {}", message.state);
 		for (int i = 0; i < colleaguesStates.size(); i++) {
 			if (colleagues.get(i).equals(this.sender())) {
 				colleaguesStates.set(i, message.state);
 			}
 		}
+		if (this.self().equals(this.sender())) selfState = message.state;
 
 		if (selfState == WorkerState.READY_TO_MERGE && message.state == WorkerState.READY_TO_MERGE) {
 			tryToMerge();
 		}
 
 		if (selfState == WorkerState.READY_TO_MERGE) {
-			boolean finishedTreeMerge = true;
+			boolean finishedMerge = true;
 			for (WorkerState colleaguesState : colleaguesStates) {
-				if (colleaguesState != WorkerState.DONE) {
-					finishedTreeMerge = false;
+				if (colleaguesState != WorkerState.DONE_MERGING) {
+					finishedMerge = false;
 				}
 			}
-			if (finishedTreeMerge) {
+			if (finishedMerge) {
 				this.log.info("Finished Merging!");
 
-				log.info("Found following minimal difference sets:");
+				this.log.info("Found following minimal difference sets:");
 				for (BitSet differenceSet : minimalDifferenceSets) {
 					log.info(DifferenceSetDetector.bitSetToString(differenceSet));
 				}
 
 				BitSet x = new BitSet(columnsInTable);
 				BitSet y = new BitSet(columnsInTable);
-				ActorRef randomRef = colleagues.get(random.nextInt(colleagues.size()));
-				randomRef.tell(new TreeOracleMessage(x, y, 0, minimalDifferenceSets, columnsInTable), this.self());
+				handle(new TreeOracleMessage(x, y, 0, minimalDifferenceSets, columnsInTable));
 			}
 		}
 	}
 
 	private void handle(TreeOracleMessage message) {
+		if (selfState != WorkerState.TREE_TRAVERSAL) broadcastAndSetState(WorkerState.TREE_TRAVERSAL);
+
 		BitSet x = message.getX();
 		BitSet y = message.getY();
 		int length = message.getLength();
 		BitSet[] differenceSets = message.getDifferenceSets();
 
 		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, columnsInTable);
-		switch (result){
+		switch (result) {
 			case MINIMAL:
 				this.report(x);
 				break;
@@ -316,6 +320,11 @@ public class PeerWorker extends AbstractActor {
 	private void report(BitSet ucc) {
 //		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
 		this.log.info("UCC: {}", toUCC(ucc));
+
+		discoveredUCCs.add(ucc);
+		for (ActorRef worker : colleagues) {
+			worker.tell(new UCCDiscoveredMessage(ucc), this.self());
+		}
 	}
 
 	private void split(TreeOracleMessage work) {
@@ -333,9 +342,22 @@ public class PeerWorker extends AbstractActor {
 
 			BitSet yNew = copyBitSet(y, next);
 			yNew.set(next);
-			randomRef = colleagues.get(random.nextInt(colleagues.size()));
-			randomRef.tell(new TreeOracleMessage(x, yNew, next + 1, minimalDifferenceSets, columnsInTable), this.self());
+			handle(new TreeOracleMessage(x, yNew, next + 1, minimalDifferenceSets, columnsInTable));
+		} else {
+			System.out.println("WHY IS THIS? ########################################################################");
 		}
+	}
+
+	private void handle(UCCDiscoveredMessage message) {
+		discoveredUCCs.add(message.ucc);
+	}
+
+	private void handle(ReportAndShutdownMessage message) {
+		for (BitSet ucc : discoveredUCCs) {
+			this.log.info("UCC: {}", toUCC(ucc));
+		}
+
+		this.getContext().stop(this.self());
 	}
 
 	private BitSet copyBitSet(BitSet set, int newLength) {
@@ -369,11 +391,11 @@ public class PeerWorker extends AbstractActor {
 
 	private void broadcastState(WorkerState state) {
 		for (ActorRef worker : colleagues) {
-			worker.tell(new DifferenceSetDiscoveryStateMessage(state), this.self());
+			worker.tell(new WorkerStateChangedMessage(state), this.self());
 		}
 	}
 
-	enum WorkerState {DISCOVERING, READY_TO_MERGE, WAITING_FOR_MERGE, ACCEPTED_MERGE, MERGING, DONE}
+	enum WorkerState {DISCOVERING, READY_TO_MERGE, WAITING_FOR_MERGE, ACCEPTED_MERGE, MERGING, DONE_MERGING, TREE_TRAVERSAL, DONE}
 
 	@Data
 	@AllArgsConstructor
@@ -383,11 +405,11 @@ public class PeerWorker extends AbstractActor {
 
 	@Data
 	@AllArgsConstructor
-	private static class DifferenceSetDiscoveryStateMessage implements Serializable {
+	private static class WorkerStateChangedMessage implements Serializable {
 		private static final long serialVersionUID = 4037295208965201337L;
 		private WorkerState state;
 
-		private DifferenceSetDiscoveryStateMessage() {
+		private WorkerStateChangedMessage() {
 		}
 	}
 
@@ -421,6 +443,16 @@ public class PeerWorker extends AbstractActor {
 
 	@Data
 	@AllArgsConstructor
+	private static class UCCDiscoveredMessage implements Serializable {
+		private static final long serialVersionUID = 997981649989901337L;
+		private BitSet ucc;
+
+		private UCCDiscoveredMessage() {
+		}
+	}
+
+	@Data
+	@AllArgsConstructor
 	private class TreeOracleMessage implements Serializable, IWorkMessage {
 		private static final long serialVersionUID = 2360129506196901337L;
 		private BitSet x;
@@ -431,5 +463,11 @@ public class PeerWorker extends AbstractActor {
 
 		private TreeOracleMessage() {
 		}
+	}
+
+	@Data
+	@AllArgsConstructor
+	private class ReportAndShutdownMessage implements Serializable {
+		private static final long serialVersionUID = 1337457603749641337L;
 	}
 }
