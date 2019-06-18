@@ -16,6 +16,7 @@ import de.hpi.hit_ucc.HittingSetOracle;
 import de.hpi.hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
 import de.hpi.hit_ucc.actors.messages.IWorkMessage;
 import de.hpi.hit_ucc.actors.messages.TaskMessage;
+import de.hpi.hit_ucc.actors.messages.TreeOracleMessage;
 import de.hpi.hit_ucc.model.Row;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -34,7 +35,7 @@ public class PeerWorker extends AbstractActor {
 	private List<WorkerState> colleaguesStates = new ArrayList<>();
 
 	private WorkerState selfState = WorkerState.DISCOVERING;
-	private long askToken = random.nextLong();
+	private int columnsInTable = 0;
 
 	private LinkedHashSet<BitSet> uniqueDifferenceSets = new LinkedHashSet<>();
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
@@ -172,6 +173,8 @@ public class PeerWorker extends AbstractActor {
 	private void handle(FindDifferenceSetFromBatchMessage message) {
 		this.log.info("Received Row Batch[id:{}] of size {}", message.getBatchId(), message.getRows().length);
 
+		columnsInTable = message.getRows()[0].values.length;
+
 		for (int indexA = 0; indexA < message.getRows().length; indexA++) {
 			for (int indexB = indexA + 1; indexB < message.getRows().length; indexB++) {
 				Row rowA = message.getRows()[indexA];
@@ -224,6 +227,7 @@ public class PeerWorker extends AbstractActor {
 	private void handle(AcceptMergeMessage message) {
 		if (selfState != WorkerState.WAITING_FOR_MERGE) {
 			this.log.info("Received Accept Merge Message but are are not waiting for an accept from {}", this.sender().path().name());
+			this.sender().tell(new DeclineMergeMessage(), this.self());
 			return;
 		}
 
@@ -278,10 +282,10 @@ public class PeerWorker extends AbstractActor {
 					log.info(DifferenceSetDetector.bitSetToString(differenceSet));
 				}
 
-				BitSet x = new BitSet();
-				BitSet y = new BitSet();
+				BitSet x = new BitSet(columnsInTable);
+				BitSet y = new BitSet(columnsInTable);
 				ActorRef randomRef = colleagues.get(random.nextInt(colleagues.size()));
-				randomRef.tell(new TreeOracleMessage(x, y, 0, minimalDifferenceSets), this.self());
+				randomRef.tell(new TreeOracleMessage(x, y, 0, minimalDifferenceSets, columnsInTable), this.self());
 			}
 		}
 	}
@@ -292,8 +296,70 @@ public class PeerWorker extends AbstractActor {
 		int length = message.getLength();
 		BitSet[] differenceSets = message.getDifferenceSets();
 
-		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, 0);
+		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, columnsInTable);
+		switch (result){
+			case MINIMAL:
+				this.report(x);
+				break;
+			case EXTENDABLE:
+				this.split(message);
+				break;
+			case NOT_EXTENDABLE:
+				// Ignore
+				break;
+			case FAILED:
+				this.log.error("Oracle failed :(");
+				break;
+		}
+	}
 
+	private void report(BitSet ucc) {
+//		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
+		this.log.info("UCC: {}", toUCC(ucc));
+	}
+
+	private void split(TreeOracleMessage work) {
+		BitSet x = work.getX();
+		BitSet y = work.getY();
+		BitSet[] minimalDifferenceSets = work.getDifferenceSets();
+
+		int next = work.getLength();
+
+		if (next < columnsInTable) {
+			BitSet xNew = copyBitSet(x, next);
+			xNew.set(next);
+			ActorRef randomRef = colleagues.get(random.nextInt(colleagues.size()));
+			randomRef.tell(new TreeOracleMessage(xNew, y, next + 1, minimalDifferenceSets, columnsInTable), this.self());
+
+			BitSet yNew = copyBitSet(y, next);
+			yNew.set(next);
+			randomRef = colleagues.get(random.nextInt(colleagues.size()));
+			randomRef.tell(new TreeOracleMessage(x, yNew, next + 1, minimalDifferenceSets, columnsInTable), this.self());
+		}
+	}
+
+	private BitSet copyBitSet(BitSet set, int newLength) {
+		BitSet copy = new BitSet(newLength);
+		for (int i = 0; i < set.length(); i++) {
+			if (set.get(i)) copy.set(i);
+		}
+
+		return copy;
+	}
+
+	private String toUCC(BitSet bitSet) {
+		if (bitSet.length() == 0) return "";
+
+		String output = "";
+		for (int i = 0; i < bitSet.length() - 1; i++) {
+			if (bitSet.get(i)) {
+				output += i + ", ";
+			}
+		}
+		if (bitSet.get(bitSet.length() - 1)) {
+			output += (bitSet.length() - 1) + ", ";
+		}
+		return output;
 	}
 
 	private void broadcastAndSetState(WorkerState state) {
@@ -329,10 +395,6 @@ public class PeerWorker extends AbstractActor {
 	@AllArgsConstructor
 	private static class AskForMergeMessage implements Serializable {
 		private static final long serialVersionUID = 2914610592052201337L;
-		private long askToken;
-
-		private AskForMergeMessage() {
-		}
 	}
 
 	@Data
@@ -365,6 +427,8 @@ public class PeerWorker extends AbstractActor {
 		private BitSet y;
 		private int length;
 		private BitSet[] differenceSets;
+		private int numAttributes;
+
 		private TreeOracleMessage() {
 		}
 	}
