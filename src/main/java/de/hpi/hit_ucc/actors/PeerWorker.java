@@ -33,8 +33,9 @@ public class PeerWorker extends AbstractActor {
 	private List<ActorRef> colleagues = new ArrayList<>();
 	private List<WorkerState> colleaguesStates = new ArrayList<>();
 
-	private WorkerState selfState = WorkerState.DISCOVERING;
+	private WorkerState selfState = WorkerState.NOT_STARTED;
 	private int columnsInTable = 0;
+	private int mergeCounter = 0;
 
 	private LinkedHashSet<BitSet> uniqueDifferenceSets = new LinkedHashSet<>();
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
@@ -59,12 +60,13 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private boolean otherHasPriority(ActorRef other) {
-		if (this.self().toString().equals(this.sender().toString())) {
+		if (this.self().toString().equals(other.toString())) {
 			this.log.error("Actor String is not unique >.<");
 		}
 
 		return this.self().toString().compareTo(other.toString()) < 0;
 	}
+
 
 	@Override
 	public Receive createReceive() {
@@ -79,6 +81,7 @@ public class PeerWorker extends AbstractActor {
 				.match(DeclineMergeMessage.class, this::handle)
 				.match(WorkerStateChangedMessage.class, this::handle)
 				.match(MergeDifferenceSetsMessage.class, this::handle)
+				.match(SyncDifferenceSetsMessage.class, this::handle)
 				.match(TreeOracleMessage.class, this::handle)
 				.match(UCCDiscoveredMessage.class, this::handle)
 				.match(ReportAndShutdownMessage.class, this::handle)
@@ -114,7 +117,7 @@ public class PeerWorker extends AbstractActor {
 		this.context().watch(this.sender());
 
 		colleagues.add(this.sender());
-		colleaguesStates.add(WorkerState.DISCOVERING);
+		colleaguesStates.add(WorkerState.NOT_STARTED);
 //		this.log.info("Registered {}; {} registered colleagues", this.sender(), colleagues.size());
 	}
 
@@ -123,37 +126,40 @@ public class PeerWorker extends AbstractActor {
 
 		String[][] table = task.getInputFile();
 
-		int batchCount = 6;
+		int anchorCount = 5;
+
+		int batchCount = 0;
+		for (int i = 0; i < anchorCount; i++) {
+			batchCount += i + 1;
+		}
+
 		List<Row>[] batches = new ArrayList[batchCount];
 		for (int i = 0; i < batchCount; i++) batches[i] = new ArrayList<>();
 
 		int triangleIndex = 0;
 		for (String[] rowData : table) {
-			switch (triangleIndex) {
-				case 0: {
-					Row row = new Row(0, rowData);
-					batches[0].add(row);
-					batches[1].add(row);
-					batches[2].add(row);
-					break;
-				}
-				case 1: {
-					Row row = new Row(3, rowData);
-					batches[1].add(row);
-					batches[3].add(row);
-					batches[4].add(row);
-					break;
-				}
-				case 2: {
-					Row row = new Row(5, rowData);
-					batches[2].add(row);
-					batches[4].add(row);
-					batches[5].add(row);
-					break;
+			int anchor = 0;
+			for (int i = 0; i < triangleIndex; i++) {
+				anchor += anchorCount - i;
+			}
+
+			Row row = new Row(anchor, rowData);
+			int lastIndex = 0;
+			for (int i = 0; i < anchorCount; i++) {
+				if (i == 0) {
+					lastIndex = triangleIndex;
+					batches[lastIndex].add(row);
+				} else if (i <= triangleIndex) {
+					lastIndex += anchorCount - i;
+					batches[lastIndex].add(row);
+				} else {
+					lastIndex += 1;
+					batches[lastIndex].add(row);
 				}
 			}
+
 			triangleIndex++;
-			if (triangleIndex > 2) triangleIndex = 0;
+			if (triangleIndex >= anchorCount) triangleIndex = 0;
 		}
 
 		int workerIndex = 0;
@@ -173,6 +179,10 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(FindDifferenceSetFromBatchMessage message) {
+		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
+			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
+		}
+
 		this.log.info("Received Row Batch[id:{}] of size {}", message.getBatchId(), message.getRows().length);
 
 		columnsInTable = message.getRows()[0].values.length;
@@ -190,13 +200,85 @@ public class PeerWorker extends AbstractActor {
 
 		this.log.info("Found {} unique sets", uniqueDifferenceSets.size());
 
-		minimalDifferenceSets = DifferenceSetDetector.GetMinimalDifferenceSets(uniqueDifferenceSets);
+		if (minimalDifferenceSets.length == 0) {
+			minimalDifferenceSets = DifferenceSetDetector.GetMinimalDifferenceSets(uniqueDifferenceSets);
+		} else {
+			Set<BitSet> tempSet = new HashSet<>();
+			tempSet.addAll(Arrays.asList(minimalDifferenceSets));
+			tempSet.addAll(uniqueDifferenceSets);
+			minimalDifferenceSets = DifferenceSetDetector.GetMinimalDifferenceSets(tempSet);
+		}
 
 		log.info("Found {} minimal difference sets from {} actual sets", minimalDifferenceSets.length, uniqueDifferenceSets.size());
 
 		uniqueDifferenceSets.clear();
 
-		broadcastAndSetState(WorkerState.READY_TO_MERGE);
+//		broadcastAndSetState(WorkerState.READY_TO_MERGE);
+		this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
+		mergeCounter++;
+	}
+
+	private void handle(WorkerStateChangedMessage message) {
+//		this.log.info("Received New State Message {}", message.state);
+
+		for (int i = 0; i < colleaguesStates.size(); i++) {
+			if (colleagues.get(i).equals(this.sender())) {
+				colleaguesStates.set(i, message.state);
+			}
+		}
+
+		if (this.self().equals(this.sender())) {
+			if (selfState != WorkerState.TREE_TRAVERSAL || message.state != WorkerState.READY_TO_MERGE) {
+				selfState = message.state;
+			}
+		}
+
+		if (selfState == WorkerState.READY_TO_MERGE && message.state == WorkerState.READY_TO_MERGE) {
+			tryToMerge();
+		}
+
+		if (selfState == WorkerState.READY_TO_MERGE) {
+			boolean finishedMerge = true;
+			for (WorkerState colleaguesState : colleaguesStates) {
+				if (colleaguesState != WorkerState.DONE_MERGING && colleaguesState != WorkerState.NOT_STARTED) {
+					finishedMerge = false;
+				}
+			}
+			if (finishedMerge) {
+				selfState = WorkerState.TREE_TRAVERSAL;
+				this.log.info("Finished Merging!");
+
+				this.log.info("Found following minimal difference sets:");
+				for (BitSet differenceSet : minimalDifferenceSets) {
+					log.info(DifferenceSetDetector.bitSetToString(differenceSet));
+				}
+
+				for (ActorRef worker : colleagues) {
+					worker.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnsInTable), this.self());
+				}
+
+				BitSet x = new BitSet(columnsInTable);
+				BitSet y = new BitSet(columnsInTable);
+				this.self().tell(new TreeOracleMessage(x, y, 0, minimalDifferenceSets, columnsInTable), this.self());
+			}
+		}
+
+		if (selfState == WorkerState.DONE && message.state == WorkerState.DONE) {
+			boolean finished = true;
+			for (WorkerState colleaguesState : colleaguesStates) {
+				if (colleaguesState != WorkerState.DONE) {
+					finished = false;
+				}
+			}
+			if (finished) {
+				this.log.info("Finished Collecting {} UCCs from table!", discoveredUCCs.size());
+			}
+		}
+	}
+
+	private void handle(SyncDifferenceSetsMessage message) {
+		minimalDifferenceSets = message.differenceSets;
+		columnsInTable = message.columnsInTable;
 	}
 
 	private void tryToMerge() {
@@ -218,7 +300,8 @@ public class PeerWorker extends AbstractActor {
 
 	private void handle(AskForMergeMessage message) {
 		this.log.info("Received Ask for Merge Message from {}", this.sender().path().name());
-		if (selfState == WorkerState.READY_TO_MERGE || (selfState == WorkerState.WAITING_FOR_MERGE && otherHasPriority())) {
+		// TODO test whether 'selfState == WorkerState.READY_TO_MERGE' is enough of if we need 'selfState == WorkerState.WAITING_FOR_MERGE' as well
+		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.WAITING_FOR_MERGE) {
 			this.sender().tell(new AcceptMergeMessage(), this.self());
 			broadcastAndSetState(WorkerState.ACCEPTED_MERGE);
 		} else {
@@ -240,7 +323,9 @@ public class PeerWorker extends AbstractActor {
 
 	private void handle(DeclineMergeMessage message) {
 		this.log.info("Received Decline Merge Message from {}", this.sender().path().name());
-		tryToMerge();
+		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.WAITING_FOR_MERGE) {
+			tryToMerge();
+		}
 	}
 
 	private void handle(MergeDifferenceSetsMessage message) {
@@ -255,41 +340,6 @@ public class PeerWorker extends AbstractActor {
 		this.log.info("Merged into {} difference sets", minimalDifferenceSets.length);
 
 		broadcastAndSetState(WorkerState.READY_TO_MERGE);
-	}
-
-	private void handle(WorkerStateChangedMessage message) {
-//		this.log.info("Received New State Message {}", message.state);
-		for (int i = 0; i < colleaguesStates.size(); i++) {
-			if (colleagues.get(i).equals(this.sender())) {
-				colleaguesStates.set(i, message.state);
-			}
-		}
-		if (this.self().equals(this.sender())) selfState = message.state;
-
-		if (selfState == WorkerState.READY_TO_MERGE && message.state == WorkerState.READY_TO_MERGE) {
-			tryToMerge();
-		}
-
-		if (selfState == WorkerState.READY_TO_MERGE) {
-			boolean finishedMerge = true;
-			for (WorkerState colleaguesState : colleaguesStates) {
-				if (colleaguesState != WorkerState.DONE_MERGING) {
-					finishedMerge = false;
-				}
-			}
-			if (finishedMerge) {
-				this.log.info("Finished Merging!");
-
-				this.log.info("Found following minimal difference sets:");
-				for (BitSet differenceSet : minimalDifferenceSets) {
-					log.info(DifferenceSetDetector.bitSetToString(differenceSet));
-				}
-
-				BitSet x = new BitSet(columnsInTable);
-				BitSet y = new BitSet(columnsInTable);
-				handle(new TreeOracleMessage(x, y, 0, minimalDifferenceSets, columnsInTable));
-			}
-		}
 	}
 
 	private void handle(TreeOracleMessage message) {
@@ -337,15 +387,21 @@ public class PeerWorker extends AbstractActor {
 		if (next < columnsInTable) {
 			BitSet xNew = copyBitSet(x, next);
 			xNew.set(next);
-			ActorRef randomRef = colleagues.get(random.nextInt(colleagues.size()));
+			ActorRef randomRef = getRandomColleague();
 			randomRef.tell(new TreeOracleMessage(xNew, y, next + 1, minimalDifferenceSets, columnsInTable), this.self());
 
 			BitSet yNew = copyBitSet(y, next);
 			yNew.set(next);
 			handle(new TreeOracleMessage(x, yNew, next + 1, minimalDifferenceSets, columnsInTable));
 		} else {
-			System.out.println("WHY IS THIS? ########################################################################");
+			this.log.info("WHY IS THIS? ################################### This is not an error - just wanted to check if this branch can actually be reached ;)");
 		}
+	}
+
+	private ActorRef getRandomColleague() {
+		if (colleagues.size() > 0) return colleagues.get(random.nextInt(colleagues.size()));
+
+		return this.self();
 	}
 
 	private void handle(UCCDiscoveredMessage message) {
@@ -395,7 +451,7 @@ public class PeerWorker extends AbstractActor {
 		}
 	}
 
-	enum WorkerState {DISCOVERING, READY_TO_MERGE, WAITING_FOR_MERGE, ACCEPTED_MERGE, MERGING, DONE_MERGING, TREE_TRAVERSAL, DONE}
+	enum WorkerState {NOT_STARTED, DISCOVERING_DIFFERENCE_SETS, READY_TO_MERGE, WAITING_FOR_MERGE, ACCEPTED_MERGE, MERGING, DONE_MERGING, TREE_TRAVERSAL, DONE}
 
 	@Data
 	@AllArgsConstructor
@@ -438,6 +494,17 @@ public class PeerWorker extends AbstractActor {
 		private BitSet[] differenceSets;
 
 		private MergeDifferenceSetsMessage() {
+		}
+	}
+
+	@Data
+	@AllArgsConstructor
+	private static class SyncDifferenceSetsMessage implements Serializable {
+		private static final long serialVersionUID = 7331387404648201337L;
+		private BitSet[] differenceSets;
+		private int columnsInTable;
+
+		private SyncDifferenceSetsMessage() {
 		}
 	}
 

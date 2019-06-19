@@ -34,6 +34,8 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 			String[][] table = null;
 			try {
 				table = ReadDataTable.readTable("bridges.csv", ',');
+//				table = ReadDataTable.readTable("chess.csv", ',');
+//				table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(0);
