@@ -60,7 +60,7 @@ public abstract class AbstractDifferenceSetDetector {
 		return new NaiveDifferenceSetDetector().testMinimalHittingSet(setA, setB);
 	}
 
-	protected abstract void addDifferenceSet(BitSet differenceSet);
+	protected abstract BitSet addDifferenceSet(BitSet differenceSet);
 
 	protected abstract BitSet[] calculateMinimalDifferenceSets();
 
@@ -71,11 +71,11 @@ public abstract class AbstractDifferenceSetDetector {
 	 */
 	protected abstract void clearState();
 
-	public void addDifferenceSet(String[] rowA, String[] rowB) {
-		addDifferenceSet(rowA, rowB, false);
+	public BitSet addDifferenceSet(String[] rowA, String[] rowB) {
+		return addDifferenceSet(rowA, rowB, false);
 	}
 
-	public void addDifferenceSet(String[] rowA, String[] rowB, boolean nullEqualsNull) {
+	public BitSet addDifferenceSet(String[] rowA, String[] rowB, boolean nullEqualsNull) {
 		dirty = true;
 
 		BitSet bitSet = new BitSet(rowA.length);
@@ -88,7 +88,7 @@ public abstract class AbstractDifferenceSetDetector {
 			}
 		}
 
-		addDifferenceSet(bitSet);
+		return addDifferenceSet(bitSet);
 	}
 
 	public BitSet[] getMinimalDifferenceSets() {

@@ -10,8 +10,9 @@ public class NaiveDifferenceSetDetector extends AbstractDifferenceSetDetector {
 	}
 
 	@Override
-	protected void addDifferenceSet(BitSet differenceSet) {
+	protected BitSet addDifferenceSet(BitSet differenceSet) {
 		uniqueDifferenceSets.add(differenceSet);
+		return differenceSet;
 	}
 
 	@Override
@@ -59,8 +60,8 @@ public class NaiveDifferenceSetDetector extends AbstractDifferenceSetDetector {
 		Set<BitSet> tempSet = uniqueDifferenceSets;
 		uniqueDifferenceSets = new HashSet<>();
 
-		for(BitSet set : setsA) addDifferenceSet(set);
-		for(BitSet set : setsB) addDifferenceSet(set);
+		for (BitSet set : setsA) addDifferenceSet(set);
+		for (BitSet set : setsB) addDifferenceSet(set);
 
 		BitSet[] merged = calculateMinimalDifferenceSets();
 		uniqueDifferenceSets = tempSet;

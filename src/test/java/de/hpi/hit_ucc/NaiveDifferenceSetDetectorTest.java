@@ -96,7 +96,7 @@ public class NaiveDifferenceSetDetectorTest {
 
 		// test that the merge don't interfere with the previously added sets
 		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets.size(), 1);
-		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), new BitSet[] {addedDifferenceSet});
+		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), new BitSet[]{addedDifferenceSet});
 	}
 
 	@Test
