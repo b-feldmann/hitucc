@@ -6,7 +6,8 @@ import akka.actor.Props;
 import akka.actor.Terminated;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import de.hpi.hit_ucc.DifferenceSetDetector;
+import de.hpi.hit_ucc.AbstractDifferenceSetDetector;
+import de.hpi.hit_ucc.NaiveDifferenceSetDetector;
 import de.hpi.hit_ucc.actors.messages.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -132,7 +133,7 @@ public class Profiler extends AbstractActor {
 
 		log.info("Found following minimal difference sets:");
 		for (BitSet differenceSet : minimalDifferenceSets) {
-			log.info(DifferenceSetDetector.bitSetToString(differenceSet, task.getAttributes()));
+			log.info(NaiveDifferenceSetDetector.bitSetToString(differenceSet, task.getAttributes()));
 		}
 
 		differenceSets.clear();
@@ -174,10 +175,10 @@ public class Profiler extends AbstractActor {
 		this.busyWorkers.remove(worker);
 		assign(worker);
 
-		if (message.getResult() == DifferenceSetDetector.FIRST_MINIMAL) {
+		if (message.getResult() == AbstractDifferenceSetDetector.FIRST_MINIMAL) {
 			minimalState[message.getIndexB()] = -1;
 		}
-		if (message.getResult() == DifferenceSetDetector.SECOND_MINIMAL) {
+		if (message.getResult() == AbstractDifferenceSetDetector.SECOND_MINIMAL) {
 			minimalState[message.getIndexA()] = -1;
 		}
 
@@ -203,7 +204,7 @@ public class Profiler extends AbstractActor {
 		ActorRef worker = this.sender();
 		TreeOracleMessage work = (TreeOracleMessage) this.busyWorkers.remove(worker);
 
-//		this.log.info("Completed: [{} | {}] => {}", DifferenceSetDetector.bitSetToString(work.getX()), DifferenceSetDetector.bitSetToString(work.getY()), message.getResult());
+//		this.log.info("Completed: [{} | {}] => {}", NaiveDifferenceSetDetector.bitSetToString(work.getX()), NaiveDifferenceSetDetector.bitSetToString(work.getY()), message.getResult());
 
 		switch (message.getResult()) {
 			case MINIMAL:
@@ -233,7 +234,7 @@ public class Profiler extends AbstractActor {
 	}
 
 	private void report(TreeOracleMessage work) {
-		this.log.info("UCC: {}", DifferenceSetDetector.bitSetToString(work.getX(), work.getNumAttributes()));
+		this.log.info("UCC: {}", NaiveDifferenceSetDetector.bitSetToString(work.getX(), work.getNumAttributes()));
 		foundUCCs.add(work.getX());
 	}
 

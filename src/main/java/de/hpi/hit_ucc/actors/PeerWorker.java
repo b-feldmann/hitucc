@@ -10,7 +10,8 @@ import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import de.hpi.hit_ucc.DifferenceSetDetector;
+import de.hpi.hit_ucc.AbstractDifferenceSetDetector;
+import de.hpi.hit_ucc.NaiveDifferenceSetDetector;
 import de.hpi.hit_ucc.HitUCCPeerSystem;
 import de.hpi.hit_ucc.HittingSetOracle;
 import de.hpi.hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
@@ -37,9 +38,10 @@ public class PeerWorker extends AbstractActor {
 	private int columnsInTable = 0;
 	private int mergeCounter = 0;
 
-	private LinkedHashSet<BitSet> uniqueDifferenceSets = new LinkedHashSet<>();
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
 	private List<BitSet> discoveredUCCs = new ArrayList<>();
+
+	private AbstractDifferenceSetDetector differenceSetDetector = new NaiveDifferenceSetDetector();
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);
@@ -193,25 +195,12 @@ public class PeerWorker extends AbstractActor {
 				Row rowB = message.getRows()[indexB];
 				if (rowA.anchor == rowB.anchor && rowA.anchor != message.getBatchId()) continue;
 
-				BitSet differenceSet = DifferenceSetDetector.calculateHittingset(rowA.values, rowB.values);
-				uniqueDifferenceSets.add(differenceSet);
+				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values);
 			}
 		}
 
-		this.log.info("Found {} unique sets", uniqueDifferenceSets.size());
-
-		if (minimalDifferenceSets.length == 0) {
-			minimalDifferenceSets = DifferenceSetDetector.GetMinimalDifferenceSets(uniqueDifferenceSets);
-		} else {
-			Set<BitSet> tempSet = new HashSet<>();
-			tempSet.addAll(Arrays.asList(minimalDifferenceSets));
-			tempSet.addAll(uniqueDifferenceSets);
-			minimalDifferenceSets = DifferenceSetDetector.GetMinimalDifferenceSets(tempSet);
-		}
-
-		log.info("Found {} minimal difference sets from {} actual sets", minimalDifferenceSets.length, uniqueDifferenceSets.size());
-
-		uniqueDifferenceSets.clear();
+		minimalDifferenceSets = differenceSetDetector.getMinimalDifferenceSets();
+		this.log.info("Calculated {} minimal difference sets", minimalDifferenceSets.length);
 
 //		broadcastAndSetState(WorkerState.READY_TO_MERGE);
 		this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
@@ -250,7 +239,7 @@ public class PeerWorker extends AbstractActor {
 
 				this.log.info("Found following minimal difference sets:");
 				for (BitSet differenceSet : minimalDifferenceSets) {
-					log.info(DifferenceSetDetector.bitSetToString(differenceSet));
+					log.info(NaiveDifferenceSetDetector.bitSetToString(differenceSet));
 				}
 
 				for (ActorRef worker : colleagues) {
@@ -332,11 +321,7 @@ public class PeerWorker extends AbstractActor {
 		broadcastAndSetState(WorkerState.MERGING);
 		this.log.info("Received Merge Message from {}", this.sender().path().name());
 
-		Set<BitSet> mergedSets = new HashSet<>();
-		mergedSets.addAll(Arrays.asList(minimalDifferenceSets));
-		mergedSets.addAll(Arrays.asList(message.differenceSets));
-
-		minimalDifferenceSets = DifferenceSetDetector.GetMinimalDifferenceSets(mergedSets);
+		minimalDifferenceSets = differenceSetDetector.mergeMinimalDifferenceSets(message.differenceSets);
 		this.log.info("Merged into {} difference sets", minimalDifferenceSets.length);
 
 		broadcastAndSetState(WorkerState.READY_TO_MERGE);
@@ -368,7 +353,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void report(BitSet ucc) {
-//		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
+//		this.log.info("SET {}", NaiveDifferenceSetDetector.bitSetToString(ucc, columnsInTable));
 		this.log.info("UCC: {}", toUCC(ucc));
 
 		discoveredUCCs.add(ucc);

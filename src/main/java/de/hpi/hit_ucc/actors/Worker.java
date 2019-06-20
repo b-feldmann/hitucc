@@ -9,7 +9,8 @@ import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import de.hpi.hit_ucc.DifferenceSetDetector;
+import de.hpi.hit_ucc.AbstractDifferenceSetDetector;
+import de.hpi.hit_ucc.NaiveDifferenceSetDetector;
 import de.hpi.hit_ucc.HittingSetOracle;
 import de.hpi.hit_ucc.HitUCCMaster;
 import de.hpi.hit_ucc.actors.Profiler.RegistrationMessage;
@@ -88,13 +89,13 @@ public class Worker extends AbstractActor {
 	}
 
 	private void handle(FindDifferenceSetMessage message) {
-		BitSet hittingSet = DifferenceSetDetector.calculateHittingset(message.getRowA(), message.getRowB());
+		BitSet hittingSet = AbstractDifferenceSetDetector.calculateDifferenceSet(message.getRowA(), message.getRowB());
 
 		this.sender().tell(new FoundDifferenceSetMessage(hittingSet), this.self());
 	}
 
 	private void handle(TestMinimalDifferenceSetMessage message) {
-		int testResult = DifferenceSetDetector.testMinimalHittingSet(message.getDifferenceSetA(), message.getDifferenceSetB());
+		int testResult = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(message.getDifferenceSetA(), message.getDifferenceSetB());
 
 		this.sender().tell(new TestedMinimalDifferenceSet(testResult, message.getIndexA(), message.getIndexB()), this.self());
 	}
