@@ -1,5 +1,7 @@
-package de.hpi.hit_ucc;
+package de.hpi.hit_ucc.behaviour.differenceSets;
 
+import de.hpi.hit_ucc.behaviour.differenceSets.AbstractDifferenceSetDetector;
+import de.hpi.hit_ucc.behaviour.differenceSets.NaiveDifferenceSetDetector;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -112,6 +114,16 @@ public class AbstractDifferenceSetDetectorTest {
 		BitSet setD = createBitSet(0, 0, 0, 1, 0);
 		BitSet setE = createBitSet(0, 1, 0, 1, 1);
 
+		BitSet setF1 = createBitSet(0, 1, 0, 1, 1);
+		BitSet setF2 = createBitSet(0, 1, 0, 1, 1);
+
+		BitSet setG1 = createBitSet(0, 0, 0, 0, 0);
+		BitSet setG2 = createBitSet(0, 0, 0, 0, 0);
+
+		BitSet setH1 = createBitSet(0, 0, 0, 0, 0);
+		BitSet setH2 = createBitSet(0, 1, 0, 1, 1);
+
+
 		// Act
 		int resultAB = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(setA, setB);
 		int resultAC = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(setA, setC);
@@ -127,6 +139,10 @@ public class AbstractDifferenceSetDetectorTest {
 
 		int resultDE = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(setD, setE);
 
+		int resultFF = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(setF1, setF2);
+		int resultGG = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(setG1, setG2);
+		int resultHH = AbstractDifferenceSetDetector.testStaticMinimalHittingSet(setH1, setH2);
+
 		// Assert
 		Assert.assertEquals(resultAB, AbstractDifferenceSetDetector.FIRST_MINIMAL);
 		Assert.assertEquals(resultAC, AbstractDifferenceSetDetector.SECOND_MINIMAL);
@@ -138,6 +154,10 @@ public class AbstractDifferenceSetDetectorTest {
 		Assert.assertEquals(resultCD, AbstractDifferenceSetDetector.NONE_MINIMAL);
 		Assert.assertEquals(resultCE, AbstractDifferenceSetDetector.NONE_MINIMAL);
 		Assert.assertEquals(resultDE, AbstractDifferenceSetDetector.FIRST_MINIMAL);
+
+		Assert.assertEquals(resultFF, AbstractDifferenceSetDetector.EQUAL_SETS);
+		Assert.assertEquals(resultGG, AbstractDifferenceSetDetector.EQUAL_SETS);
+		Assert.assertEquals(resultHH, AbstractDifferenceSetDetector.NONE_MINIMAL);
 	}
 
 	@Test

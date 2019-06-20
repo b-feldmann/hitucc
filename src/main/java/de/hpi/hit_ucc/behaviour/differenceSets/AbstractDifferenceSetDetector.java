@@ -1,4 +1,4 @@
-package de.hpi.hit_ucc;
+package de.hpi.hit_ucc.behaviour.differenceSets;
 
 import java.util.BitSet;
 
@@ -6,6 +6,7 @@ public abstract class AbstractDifferenceSetDetector {
 	public static final int NONE_MINIMAL = 0;
 	public static final int FIRST_MINIMAL = 1;
 	public static final int SECOND_MINIMAL = 2;
+	public static final int EQUAL_SETS = 3;
 
 	private boolean dirty = false;
 
@@ -113,12 +114,16 @@ public abstract class AbstractDifferenceSetDetector {
 	}
 
 	protected int testMinimalHittingSet(BitSet setA, BitSet setB) {
-		if (setA.cardinality() == 0 || setB.cardinality() == 0) return NONE_MINIMAL;
+		if (setA.cardinality() == 0 || setB.cardinality() == 0) {
+			if (setA.cardinality() == setB.cardinality()) return EQUAL_SETS;
+
+			return NONE_MINIMAL;
+		}
 
 		// 0 - none minimal
 		// 1 - setA minimal candidate
 		// 2 - setB minimal candidate
-		int minimalCandidate = NONE_MINIMAL;
+		int minimalCandidate = EQUAL_SETS;
 
 		int maxLength = Math.max(setA.length(), setB.length());
 		for (int i = 0; i < maxLength; i++) {
