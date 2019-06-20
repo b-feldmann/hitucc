@@ -3,7 +3,7 @@ package de.hpi.hit_ucc;
 import java.util.*;
 
 public class NaiveDifferenceSetDetector extends AbstractDifferenceSetDetector {
-	private Set<BitSet> uniqueDifferenceSets;
+	Set<BitSet> uniqueDifferenceSets;
 
 	public NaiveDifferenceSetDetector() {
 		uniqueDifferenceSets = new HashSet<>();

@@ -5,6 +5,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.BitSet;
+import java.util.HashSet;
 
 public class NaiveDifferenceSetDetectorTest {
 
@@ -23,7 +24,27 @@ public class NaiveDifferenceSetDetectorTest {
 	}
 
 	@Test
-	public void testGetMinimalDifferenceSets() {
+	public void testAddDifferenceSet() {
+		BitSet[] testSets = new BitSet[]{
+				createBitSet(0, 1, 1, 0, 1),
+				createBitSet(0, 1, 0, 0, 0),
+				createBitSet(1, 0, 0, 0, 0)
+		};
+
+		for (BitSet set : testSets) differenceSetDetector.addDifferenceSet(set);
+
+		// added 3 sets
+		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets.size(), 3);
+		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), testSets);
+
+		// not added because the new set is a duplicate
+		differenceSetDetector.addDifferenceSet(createBitSet(1, 0, 0, 0, 0));
+		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets.size(), 3);
+		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), testSets);
+	}
+
+	@Test
+	public void testCalculateMinimalDifferenceSets() {
 		// Arrange
 		BitSet setA = createBitSet(1, 1, 0, 1, 1);
 		BitSet setB = createBitSet(1, 1, 1, 1, 1);
@@ -38,10 +59,58 @@ public class NaiveDifferenceSetDetectorTest {
 		differenceSetDetector.addDifferenceSet(setC);
 
 		// Act
-		BitSet[] minimalDifferenceSets = differenceSetDetector.getMinimalDifferenceSets();
+		BitSet[] minimalDifferenceSets = differenceSetDetector.calculateMinimalDifferenceSets();
 
 		// Assert
 		Assert.assertEquals(minimalDifferenceSets.length, 2);
 		Assert.assertEqualsNoOrder(minimalDifferenceSets, new BitSet[]{setC, setD});
+	}
+
+	@Test
+	public void testMergeMinimalDifferenceSets() {
+		BitSet addedDifferenceSet = createBitSet(1, 0, 1, 0, 1);
+		differenceSetDetector.addDifferenceSet(addedDifferenceSet);
+
+		BitSet[] testSetsA = new BitSet[]{
+				createBitSet(0, 1, 0, 0, 0),
+				createBitSet(0, 0, 1, 1, 0),
+				createBitSet(1, 0, 0, 0, 0)
+		};
+
+		BitSet[] testSetsB = new BitSet[]{
+				createBitSet(0, 0, 0, 0, 1),
+				createBitSet(0, 1, 1, 1, 0),
+				createBitSet(1, 0, 0, 0, 0)
+		};
+
+		BitSet[] expectedMergedSets = new BitSet[]{
+				createBitSet(0, 0, 0, 0, 1),
+				createBitSet(0, 1, 0, 0, 0),
+				createBitSet(0, 0, 1, 1, 0),
+				createBitSet(1, 0, 0, 0, 0)
+		};
+
+		BitSet[] actualMergedSets = differenceSetDetector.mergeMinimalDifferenceSets(testSetsA, testSetsB);
+		Assert.assertEquals(actualMergedSets.length, expectedMergedSets.length);
+		Assert.assertEqualsNoOrder(actualMergedSets, expectedMergedSets);
+
+		// test that the merge don't interfere with the previously added sets
+		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets.size(), 1);
+		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), new BitSet[] {addedDifferenceSet});
+	}
+
+	@Test
+	public void testClearState() {
+		BitSet[] testSets = new BitSet[]{
+				createBitSet(0, 1, 1, 0, 1),
+				createBitSet(0, 1, 0, 0, 0),
+				createBitSet(1, 0, 0, 0, 0)
+		};
+
+		for (BitSet set : testSets) differenceSetDetector.addDifferenceSet(set);
+		differenceSetDetector.clearState();
+		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets.size(), 0);
+		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets.toArray(), new BitSet[0]);
+		Assert.assertEquals(differenceSetDetector.uniqueDifferenceSets, new HashSet<BitSet>());
 	}
 }
