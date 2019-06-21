@@ -3,7 +3,7 @@ package de.hpi.hit_ucc.behaviour.differenceSets;
 import java.util.*;
 
 public class NaiveDifferenceSetDetector extends AbstractDifferenceSetDetector {
-	Set<BitSet> uniqueDifferenceSets;
+	HashSet<BitSet> uniqueDifferenceSets;
 
 	public NaiveDifferenceSetDetector() {
 		uniqueDifferenceSets = new HashSet<>();
@@ -17,7 +17,7 @@ public class NaiveDifferenceSetDetector extends AbstractDifferenceSetDetector {
 
 	@Override
 	protected BitSet[] calculateMinimalDifferenceSets() {
-		List<BitSet> sets = new ArrayList<>();
+		ArrayList<BitSet> sets = new ArrayList<>();
 		for (BitSet set : uniqueDifferenceSets) sets.add(set);
 
 		int[] minimalState = new int[sets.size()];
@@ -57,7 +57,7 @@ public class NaiveDifferenceSetDetector extends AbstractDifferenceSetDetector {
 
 	@Override
 	protected BitSet[] mergeMinimalDifferenceSets(BitSet[] setsA, BitSet[] setsB) {
-		Set<BitSet> tempSet = uniqueDifferenceSets;
+		HashSet<BitSet> tempSet = uniqueDifferenceSets;
 		uniqueDifferenceSets = new HashSet<>();
 
 		for (BitSet set : setsA) addDifferenceSet(set);

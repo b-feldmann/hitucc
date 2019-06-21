@@ -17,6 +17,7 @@ import de.hpi.hit_ucc.HittingSetOracle;
 import de.hpi.hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
 import de.hpi.hit_ucc.actors.messages.IWorkMessage;
 import de.hpi.hit_ucc.actors.messages.TaskMessage;
+import de.hpi.hit_ucc.behaviour.differenceSets.SortingDifferenceSetDetector;
 import de.hpi.hit_ucc.model.Row;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -41,7 +42,7 @@ public class PeerWorker extends AbstractActor {
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
 	private List<BitSet> discoveredUCCs = new ArrayList<>();
 
-	private AbstractDifferenceSetDetector differenceSetDetector = new NaiveDifferenceSetDetector();
+	private AbstractDifferenceSetDetector differenceSetDetector = new SortingDifferenceSetDetector();
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);

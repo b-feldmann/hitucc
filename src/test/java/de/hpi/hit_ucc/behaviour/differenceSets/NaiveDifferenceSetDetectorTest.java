@@ -44,7 +44,7 @@ public class NaiveDifferenceSetDetectorTest {
 		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), testSets);
 	}
 
-	@Test
+	@Test(dependsOnMethods = {"testAddDifferenceSet"})
 	public void testCalculateMinimalDifferenceSets() {
 		// Arrange
 		BitSet setA = createBitSet(1, 1, 0, 1, 1);
@@ -67,7 +67,7 @@ public class NaiveDifferenceSetDetectorTest {
 		Assert.assertEqualsNoOrder(minimalDifferenceSets, new BitSet[]{setC, setD});
 	}
 
-	@Test
+	@Test(dependsOnMethods = {"testCalculateMinimalDifferenceSets"})
 	public void testMergeMinimalDifferenceSets() {
 		BitSet addedDifferenceSet = createBitSet(1, 0, 1, 0, 1);
 		differenceSetDetector.addDifferenceSet(addedDifferenceSet);
@@ -100,7 +100,7 @@ public class NaiveDifferenceSetDetectorTest {
 		Assert.assertEqualsNoOrder(differenceSetDetector.uniqueDifferenceSets.toArray(), new BitSet[]{addedDifferenceSet});
 	}
 
-	@Test
+	@Test(dependsOnMethods = {"testAddDifferenceSet"})
 	public void testClearState() {
 		BitSet[] testSets = new BitSet[]{
 				createBitSet(0, 1, 1, 0, 1),
