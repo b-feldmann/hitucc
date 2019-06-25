@@ -4,14 +4,14 @@ import java.util.*;
 
 public class SortingCalculateMinimalSetsStrategy implements ICalculateMinimalSetsStrategy {
 	@Override
-	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets, int numberOfColumns) {
+	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets) {
 		List<BitSet> foundMinimalSets = new ArrayList<>();
 
 		List<BitSet> sortedList = new ArrayList<>();
 		for (BitSet i : uniqueSets) {
 			sortedList.add(i);
 		}
-		Collections.sort(sortedList, Comparator.comparingInt(BitSet::cardinality));
+		sortedList.sort(Comparator.comparingInt(BitSet::cardinality));
 
 		for (BitSet set : sortedList) {
 			DifferenceSetDetector.insertMinimalDifferenceSets(foundMinimalSets, set);

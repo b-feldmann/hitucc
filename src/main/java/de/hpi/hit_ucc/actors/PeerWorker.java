@@ -47,7 +47,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void createDifferenceSetDetector() {
-		differenceSetDetector = new DifferenceSetDetector(columnsInTable, new TrieAddDifferenceSetStrategy(columnsInTable), new SortingCalculateMinimalSetsStrategy(), new OneSidedMergeMinimalSetsStrategy());
+		differenceSetDetector = new DifferenceSetDetector(new TrieAddDifferenceSetStrategy(columnsInTable), new BucketingCalculateMinimalSetsStrategy(columnsInTable), new TwoSidedMergeMinimalSetsStrategy());
 	}
 
 	@Override
@@ -243,7 +243,7 @@ public class PeerWorker extends AbstractActor {
 
 				this.log.info("Found following minimal difference sets:");
 				for (BitSet differenceSet : minimalDifferenceSets) {
-					log.info(NaiveDifferenceSetDetector.bitSetToString(differenceSet));
+					log.info(DifferenceSetDetector.bitSetToString(differenceSet));
 				}
 
 				for (ActorRef worker : colleagues) {
@@ -358,7 +358,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void report(BitSet ucc) {
-//		this.log.info("SET {}", NaiveDifferenceSetDetector.bitSetToString(ucc, columnsInTable));
+//		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
 		this.log.info("UCC: {}", toUCC(ucc));
 
 		discoveredUCCs.add(ucc);

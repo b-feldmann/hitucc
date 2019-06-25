@@ -10,16 +10,16 @@ import java.util.BitSet;
 import java.util.Random;
 
 public class PerformanceTest {
-	final int testTries = 5;
+	final int testTries = 3;
 	String[][] table;
 	String[][] warmupTable;
 
 	@BeforeClass(groups = {"performance"})
 	private void setupTable() {
 		try {
-			table = ReadDataTable.readTable("bridges.csv", ',');
+//			table = ReadDataTable.readTable("bridges.csv", ',');
 //			table = ReadDataTable.readTable("nursery.csv", ',');
-//				table = ReadDataTable.readTable("chess.csv", ',');
+				table = ReadDataTable.readTable("chess.csv", ',');
 //				table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
 
 			warmupTable = new String[50][];
@@ -101,49 +101,41 @@ public class PerformanceTest {
 
 	@Test(groups = {"performance"})
 	private void testHashNaiveOneSidedDifferenceSetDetector() {
-		testDifferenceSetDetector("Hash-Naive-OneSided", new DifferenceSetDetector(table[0].length,
+		testDifferenceSetDetector("Hash-Naive-TwoSided", new DifferenceSetDetector(
 				new HashAddDifferenceSetStrategy(),
 				new NaiveCalculateMinimalSetsStrategy(),
-				new OneSidedMergeMinimalSetsStrategy()));
+				new TwoSidedMergeMinimalSetsStrategy()));
 	}
 
 	@Test(groups = {"performance"})
 	private void testHashSortingOneSidedDifferenceSetDetector() {
-		testDifferenceSetDetector("Hash-Sorting-OneSided", new DifferenceSetDetector(table[0].length,
+		testDifferenceSetDetector("Hash-Sorting-TwoSided", new DifferenceSetDetector(
 				new HashAddDifferenceSetStrategy(),
 				new SortingCalculateMinimalSetsStrategy(),
-				new OneSidedMergeMinimalSetsStrategy()));
+				new TwoSidedMergeMinimalSetsStrategy()));
 	}
 
 	@Test(groups = {"performance"})
 	private void testHashBucketingOneSidedDifferenceSetDetector() {
-		testDifferenceSetDetector("Hash-Bucketing-OneSided", new DifferenceSetDetector(table[0].length,
+		testDifferenceSetDetector("Hash-Bucketing-TwoSided", new DifferenceSetDetector(
 				new HashAddDifferenceSetStrategy(),
-				new BucketingCalculateMinimalSetsStrategy(),
-				new OneSidedMergeMinimalSetsStrategy()));
-	}
-
-	@Test(groups = {"performance"}, enabled = false)
-	private void testHashBucketingTwoSidedDifferenceSetDetector() {
-		testDifferenceSetDetector("Hash-Bucketing-TwoSided", new DifferenceSetDetector(table[0].length,
-				new HashAddDifferenceSetStrategy(),
-				new BucketingCalculateMinimalSetsStrategy(),
+				new BucketingCalculateMinimalSetsStrategy(table[0].length),
 				new TwoSidedMergeMinimalSetsStrategy()));
 	}
 
 	@Test(groups = {"performance"})
 	private void testTrieBucketingTwoSidedDifferenceSetDetector() {
-		testDifferenceSetDetector("Trie-Bucketing-OneSided", new DifferenceSetDetector(table[0].length,
+		testDifferenceSetDetector("Trie-Bucketing-TwoSided", new DifferenceSetDetector(
 				new TrieAddDifferenceSetStrategy(table[0].length),
-				new BucketingCalculateMinimalSetsStrategy(),
-				new OneSidedMergeMinimalSetsStrategy()));
+				new BucketingCalculateMinimalSetsStrategy(table[0].length),
+				new TwoSidedMergeMinimalSetsStrategy()));
 	}
 
 	@Test(groups = {"performance"}, enabled = false)
 	private void testJustBucketingTwoSidedDifferenceSetDetector() {
-		testDifferenceSetDetector("Just-Bucketing-TwoSided", new DifferenceSetDetector(table[0].length,
+		testDifferenceSetDetector("Just-Bucketing-TwoSided", new DifferenceSetDetector(
 				new JustAddDifferenceSetStrategy(),
-				new BucketingCalculateMinimalSetsStrategy(),
+				new BucketingCalculateMinimalSetsStrategy(table[0].length),
 				new TwoSidedMergeMinimalSetsStrategy()));
 	}
 }

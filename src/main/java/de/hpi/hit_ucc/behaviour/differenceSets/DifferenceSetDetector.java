@@ -9,7 +9,6 @@ public class DifferenceSetDetector {
 	public static final int SECOND_MINIMAL = 2;
 	public static final int EQUAL_SETS = 3;
 
-	private int numberOfColumns;
 	private IAddDifferenceSetStrategy addStrategy;
 	private ICalculateMinimalSetsStrategy calculateMinimalStrategy;
 	private IMergeMinimalSetsStrategy mergeSetsStrategy;
@@ -18,8 +17,7 @@ public class DifferenceSetDetector {
 
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
 
-	public DifferenceSetDetector(int numberOfColumns, IAddDifferenceSetStrategy addStrategy, ICalculateMinimalSetsStrategy calculateMinimalStrategy, IMergeMinimalSetsStrategy mergeSetsStrategy) {
-		this.numberOfColumns = numberOfColumns;
+	public DifferenceSetDetector(IAddDifferenceSetStrategy addStrategy, ICalculateMinimalSetsStrategy calculateMinimalStrategy, IMergeMinimalSetsStrategy mergeSetsStrategy) {
 		this.addStrategy = addStrategy;
 		this.calculateMinimalStrategy = calculateMinimalStrategy;
 		this.mergeSetsStrategy = mergeSetsStrategy;
@@ -67,14 +65,14 @@ public class DifferenceSetDetector {
 		if (dirty) {
 			dirty = false;
 			if (minimalDifferenceSets.length == 0) {
-				minimalDifferenceSets = calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable(), numberOfColumns);
+				minimalDifferenceSets = calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable());
 				addStrategy.clearState();
 				return minimalDifferenceSets;
 			}
 
 			minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(
 					minimalDifferenceSets,
-					calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable(), numberOfColumns)
+					calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable())
 			);
 			addStrategy.clearState();
 			return minimalDifferenceSets;

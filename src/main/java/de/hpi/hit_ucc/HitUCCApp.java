@@ -19,8 +19,6 @@ public class HitUCCApp {
         SlaveCommand slaveCommand = new SlaveCommand();
         JCommander jCommander = JCommander.newBuilder()
         	.addCommand(HitUCCPeerSystem.PEER_ROLE, peerCommand)
-        	.addCommand(HitUCCMaster.MASTER_ROLE, masterCommand)
-            .addCommand(HitUCCSlave.SLAVE_ROLE, slaveCommand)
             .build();
 
         try {
@@ -33,12 +31,6 @@ public class HitUCCApp {
             switch (jCommander.getParsedCommand()) {
                 case HitUCCPeerSystem.PEER_ROLE:
                     HitUCCPeerSystem.start(ACTOR_SYSTEM_NAME, peerCommand.workers, peerCommand.host, peerCommand.port);
-                    break;
-                case HitUCCMaster.MASTER_ROLE:
-                    HitUCCMaster.start(ACTOR_SYSTEM_NAME, masterCommand.workers, masterCommand.host, masterCommand.port);
-                    break;
-                case HitUCCSlave.SLAVE_ROLE:
-                    HitUCCSlave.start(ACTOR_SYSTEM_NAME, slaveCommand.workers, slaveCommand.host, slaveCommand.port, slaveCommand.masterhost, slaveCommand.masterport);
                     break;
                 default:
                     throw new AssertionError();

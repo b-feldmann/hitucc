@@ -10,7 +10,7 @@ public class TwoSidedMergeMinimalSetsStrategy implements IMergeMinimalSetsStrate
 	public BitSet[] mergeMinimalDifferenceSets(BitSet[] setsA, BitSet[] setsB) {
 		List<BitSet> minimalSets = new ArrayList<>();
 
-		for(int a = 0, b = 0; a < setsA.length || b < setsA.length;){
+		for(int a = 0, b = 0; a < setsA.length || b < setsB.length;){
 			if(a == setsA.length) {
 				DifferenceSetDetector.insertMinimalDifferenceSets(minimalSets, setsB[b]);
 				b++;

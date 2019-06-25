@@ -1,21 +1,23 @@
 package de.hpi.hit_ucc.behaviour.differenceSets;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.BitSet;
-import java.util.List;
+import java.util.*;
 
 public class OneSidedMergeMinimalSetsStrategy implements IMergeMinimalSetsStrategy {
 	@Override
 	public BitSet[] mergeMinimalDifferenceSets(BitSet[] setsA, BitSet[] setsB) {
+		List<BitSet> sortedSets = new ArrayList<>();
 		List<BitSet> minimalSets = new ArrayList<>();
-		minimalSets.addAll(Arrays.asList(setsA));
 
-		for (BitSet set : setsB) {
-			DifferenceSetDetector.insertMinimalDifferenceSets(minimalSets, set);
+		for (BitSet set : setsA) {
+			DifferenceSetDetector.insertMinimalDifferenceSets(sortedSets, set);
 		}
+		for (BitSet set : setsB) {
+			DifferenceSetDetector.insertMinimalDifferenceSets(sortedSets, set);
+		}
+		sortedSets.sort(Comparator.comparingInt(BitSet::cardinality));
 
-		BitSet[] result = new BitSet[minimalSets.size()];
-		return minimalSets.toArray(result);
+		for(BitSet set : sortedSets) DifferenceSetDetector.insertMinimalDifferenceSets(minimalSets, set);
+
+		return minimalSets.toArray(new BitSet[minimalSets.size()]);
 	}
 }

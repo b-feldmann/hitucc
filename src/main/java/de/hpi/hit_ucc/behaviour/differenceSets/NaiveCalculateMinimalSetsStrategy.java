@@ -7,7 +7,7 @@ import static de.hpi.hit_ucc.behaviour.differenceSets.DifferenceSetDetector.SECO
 
 public class NaiveCalculateMinimalSetsStrategy implements ICalculateMinimalSetsStrategy {
 	@Override
-	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets, int numberOfColumns) {
+	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets) {
 		ArrayList<BitSet> sets = new ArrayList<>();
 		for (BitSet set : uniqueSets) sets.add(set);
 

@@ -5,8 +5,14 @@ import java.util.*;
 import static de.hpi.hit_ucc.behaviour.differenceSets.DifferenceSetDetector.insertMinimalDifferenceSets;
 
 public class BucketingCalculateMinimalSetsStrategy implements ICalculateMinimalSetsStrategy {
+	private int numberOfColumns;
+
+	public BucketingCalculateMinimalSetsStrategy(int numberOfColumns) {
+		this.numberOfColumns = numberOfColumns;
+	}
+
 	@Override
-	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets, int numberOfColumns) {
+	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets) {
 		ArrayList<BitSet> foundMinimalSets = new ArrayList<>();
 
 		ArrayList<BitSet>[] bucketList = new ArrayList[numberOfColumns + 1];
