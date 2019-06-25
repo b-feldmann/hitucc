@@ -10,14 +10,12 @@ import akka.cluster.Member;
 import akka.cluster.MemberStatus;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
-import de.hpi.hit_ucc.behaviour.differenceSets.AbstractDifferenceSetDetector;
-import de.hpi.hit_ucc.behaviour.differenceSets.NaiveDifferenceSetDetector;
+import de.hpi.hit_ucc.behaviour.differenceSets.*;
 import de.hpi.hit_ucc.HitUCCPeerSystem;
 import de.hpi.hit_ucc.HittingSetOracle;
 import de.hpi.hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
 import de.hpi.hit_ucc.actors.messages.IWorkMessage;
 import de.hpi.hit_ucc.actors.messages.TaskMessage;
-import de.hpi.hit_ucc.behaviour.differenceSets.SortingDifferenceSetDetector;
 import de.hpi.hit_ucc.model.Row;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -42,10 +40,14 @@ public class PeerWorker extends AbstractActor {
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
 	private List<BitSet> discoveredUCCs = new ArrayList<>();
 
-	private AbstractDifferenceSetDetector differenceSetDetector = new SortingDifferenceSetDetector();
+	private DifferenceSetDetector differenceSetDetector;
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);
+	}
+
+	private void createDifferenceSetDetector() {
+		differenceSetDetector = new DifferenceSetDetector(columnsInTable, new TrieAddDifferenceSetStrategy(columnsInTable), new SortingCalculateMinimalSetsStrategy(), new OneSidedMergeMinimalSetsStrategy());
 	}
 
 	@Override
@@ -185,10 +187,11 @@ public class PeerWorker extends AbstractActor {
 		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
 			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
 		}
+		columnsInTable = message.getRows()[0].values.length;
+		if(differenceSetDetector == null) createDifferenceSetDetector();
 
 		this.log.info("Received Row Batch[id:{}] of size {}", message.getBatchId(), message.getRows().length);
 
-		columnsInTable = message.getRows()[0].values.length;
 
 		for (int indexA = 0; indexA < message.getRows().length; indexA++) {
 			for (int indexB = indexA + 1; indexB < message.getRows().length; indexB++) {
@@ -319,6 +322,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(MergeDifferenceSetsMessage message) {
+//		if(differenceSetDetector == null) createDifferenceSetDetector();
 		broadcastAndSetState(WorkerState.MERGING);
 		this.log.info("Received Merge Message from {}", this.sender().path().name());
 
