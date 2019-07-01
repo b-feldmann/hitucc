@@ -16,7 +16,7 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 	public static final String PEER_ROLE = "peer";
 
-	public static void start(String actorSystemName, int workers, String host, int port) {
+	public static void start(String actorSystemName, int workers, int dataDuplicationFactor, boolean nullEqualsNull, String host, int port) {
 		final Config config = createConfiguration(actorSystemName, PEER_ROLE, host, port, host, port);
 		final ActorSystem system = createSystem(actorSystemName, config);
 
@@ -36,6 +36,8 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 				table = ReadDataTable.readTable("bridges.csv", ',');
 //				table = ReadDataTable.readTable("chess.csv", ',');
 //				table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
+//				table = ReadDataTable.readTable("flight_1k.csv", ';', true);
+//				table = ReadDataTable.readTable("uniprot_1001r_223c.csv", ',', true);
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(0);
@@ -47,7 +49,7 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 				e.printStackTrace();
 			}
 
-			workerRefs.get(0).tell(new TaskMessage(table, table[0].length), ActorRef.noSender());
+			workerRefs.get(0).tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull), ActorRef.noSender());
 		});
 	}
 }

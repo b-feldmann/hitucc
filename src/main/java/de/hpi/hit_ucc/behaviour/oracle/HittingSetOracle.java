@@ -1,4 +1,4 @@
-package de.hpi.hit_ucc;
+package de.hpi.hit_ucc.behaviour.oracle;
 
 import java.util.ArrayList;
 import java.util.Arrays;

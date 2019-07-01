@@ -10,25 +10,25 @@ import java.util.BitSet;
 import java.util.Random;
 
 public class PerformanceTest {
-	final int testTries = 3;
-	String[][] table;
-	String[][] warmupTable;
+	private final int TEST_TRIES = 5;
+	private String[][] table;
+	private String[][] warmUpTable;
 
 	@BeforeClass(groups = {"performance"})
 	private void setupTable() {
 		try {
 //			table = ReadDataTable.readTable("bridges.csv", ',');
-//			table = ReadDataTable.readTable("nursery.csv", ',');
-				table = ReadDataTable.readTable("chess.csv", ',');
-//				table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
+			table = ReadDataTable.readTable("nursery.csv", ',');
+//			table = ReadDataTable.readTable("chess.csv", ',');
+//			table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
 
-			warmupTable = new String[50][];
+			warmUpTable = new String[50][];
 			int columns = table[0].length;
 			Random random = new Random(0);
-			for (int i = 0; i < warmupTable.length; i++) {
-				warmupTable[i] = new String[columns];
+			for (int i = 0; i < warmUpTable.length; i++) {
+				warmUpTable[i] = new String[columns];
 				for (int k = 0; k < columns; k++) {
-					warmupTable[i][k] = String.valueOf(random.nextInt(20));
+					warmUpTable[i][k] = String.valueOf(random.nextInt(20));
 				}
 			}
 		} catch (IOException e) {
@@ -46,7 +46,7 @@ public class PerformanceTest {
 	}
 
 	private void warmUp(DifferenceSetDetector differenceSetDetector) {
-		addTable(differenceSetDetector, warmupTable);
+		addTable(differenceSetDetector, warmUpTable);
 		BitSet[] minimal = differenceSetDetector.getMinimalDifferenceSets();
 		BitSet[] merged = differenceSetDetector.mergeMinimalDifferenceSets(minimal);
 		differenceSetDetector.clearState();
@@ -59,7 +59,7 @@ public class PerformanceTest {
 		long sumMinimalTime = 0;
 		long sumMergeTime = 0;
 
-		for (int i = 0; i < testTries; i++) {
+		for (int i = 0; i < TEST_TRIES; i++) {
 			long startTime = System.currentTimeMillis();
 
 			addTable(differenceSetDetector, table);
@@ -80,7 +80,7 @@ public class PerformanceTest {
 							name,
 							addTime - startTime, getMinimalTime - addTime, mergeTime - getMinimalTime,
 							mergeTime - startTime,
-							i + 1, testTries
+							i + 1, TEST_TRIES
 					),
 					true);
 
@@ -90,17 +90,17 @@ public class PerformanceTest {
 		Reporter.log(
 				String.format("Performance Test %s [Add: %dms, GetMinimal: %dms, Merge: %dms] in %dms (%d tries)",
 						name,
-						sumAddTime / testTries,
-						sumMinimalTime / testTries,
-						sumMergeTime / testTries,
-						(sumMergeTime + sumMinimalTime + sumAddTime) / testTries,
-						testTries
+						sumAddTime / TEST_TRIES,
+						sumMinimalTime / TEST_TRIES,
+						sumMergeTime / TEST_TRIES,
+						(sumMergeTime + sumMinimalTime + sumAddTime) / TEST_TRIES,
+						TEST_TRIES
 				),
 				true);
 	}
 
 	@Test(groups = {"performance"})
-	private void testHashNaiveOneSidedDifferenceSetDetector() {
+	private void testHashNaiveTwoSidedDifferenceSetDetector() {
 		testDifferenceSetDetector("Hash-Naive-TwoSided", new DifferenceSetDetector(
 				new HashAddDifferenceSetStrategy(),
 				new NaiveCalculateMinimalSetsStrategy(),
@@ -108,7 +108,7 @@ public class PerformanceTest {
 	}
 
 	@Test(groups = {"performance"})
-	private void testHashSortingOneSidedDifferenceSetDetector() {
+	private void testHashSortingTwoSidedDifferenceSetDetector() {
 		testDifferenceSetDetector("Hash-Sorting-TwoSided", new DifferenceSetDetector(
 				new HashAddDifferenceSetStrategy(),
 				new SortingCalculateMinimalSetsStrategy(),
@@ -116,7 +116,7 @@ public class PerformanceTest {
 	}
 
 	@Test(groups = {"performance"})
-	private void testHashBucketingOneSidedDifferenceSetDetector() {
+	private void testHashBucketingTwoSidedDifferenceSetDetector() {
 		testDifferenceSetDetector("Hash-Bucketing-TwoSided", new DifferenceSetDetector(
 				new HashAddDifferenceSetStrategy(),
 				new BucketingCalculateMinimalSetsStrategy(table[0].length),

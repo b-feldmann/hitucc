@@ -14,4 +14,5 @@ public class FindDifferenceSetFromBatchMessage implements Serializable {
 	private FindDifferenceSetFromBatchMessage() {}
 	private Row[] rows;
 	private int batchId;
+	private boolean nullEqualsNull;
 }
