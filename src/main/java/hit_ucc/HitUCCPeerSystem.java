@@ -47,5 +47,9 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 			workerRefs.get(0).tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull), ActorRef.noSender());
 		});
+
+		Cluster.get(system).registerOnMemberRemoved(() -> {
+			System.out.println("TODO: print UCCs to file");
+		});
 	}
 }

@@ -270,6 +270,7 @@ public class PeerWorker extends AbstractActor {
 					worker.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnsInTable), this.self());
 				}
 
+				this.log.info("Start Tree Search");
 				BitSet x = new BitSet(columnsInTable);
 				BitSet y = new BitSet(columnsInTable);
 				addRootTreeSearchNode();
@@ -442,7 +443,7 @@ public class PeerWorker extends AbstractActor {
 
 	private void report(BitSet ucc) {
 //		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
-//		this.log.info("UCC: {}", toUCC(ucc));
+		this.log.info("UCC: {}", toUCC(ucc));
 
 		discoveredUCCs.add(ucc);
 		for (ActorRef worker : colleagues) {
