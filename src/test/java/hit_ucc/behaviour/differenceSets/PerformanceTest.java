@@ -19,7 +19,7 @@ public class PerformanceTest {
 		try {
 //			table = ReadDataTable.readTable("bridges.csv", ',');
 			table = ReadDataTable.readTable("nursery.csv", ',');
-//			table = ReadDataTable.readTable("chess.csv", ',');
+//			table = ReadDataTable.readTable("chess.csv"11, ',');
 //			table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
 
 			warmUpTable = new String[50][];
@@ -99,6 +99,14 @@ public class PerformanceTest {
 				true);
 	}
 
+	@Test(groups = {"performance"}, testName = "testJustAddNonUniqueDifferenceSetDetector")
+	private void testJustAddNonUniqueDifferenceSetDetector() {
+		testDifferenceSetDetector("Just-NonUnique-TwoSided", new DifferenceSetDetector(
+				new JustAddSortDifferenceSetStrategy(),
+				new SortedNonUniqueCalculateMinimalSetsStrategy(),
+				new TwoSidedMergeMinimalSetsStrategy()));
+	}
+
 	@Test(groups = {"performance"})
 	private void testHashNaiveTwoSidedDifferenceSetDetector() {
 		testDifferenceSetDetector("Hash-Naive-TwoSided", new DifferenceSetDetector(
@@ -127,6 +135,14 @@ public class PerformanceTest {
 	private void testTrieBucketingTwoSidedDifferenceSetDetector() {
 		testDifferenceSetDetector("Trie-Bucketing-TwoSided", new DifferenceSetDetector(
 				new TrieAddDifferenceSetStrategy(table[0].length),
+				new BucketingCalculateMinimalSetsStrategy(table[0].length),
+				new TwoSidedMergeMinimalSetsStrategy()));
+	}
+
+	@Test(groups = {"performance"})
+	private void testJavaTrieBucketingTwoSidedDifferenceSetDetector() {
+		testDifferenceSetDetector("Trie-Bucketing-TwoSided", new DifferenceSetDetector(
+				new JavaTrieAddDifferenceSetStrategy(),
 				new BucketingCalculateMinimalSetsStrategy(table[0].length),
 				new TwoSidedMergeMinimalSetsStrategy()));
 	}

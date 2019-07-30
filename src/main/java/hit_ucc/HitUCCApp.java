@@ -15,7 +15,9 @@ public class HitUCCApp {
 	public static void main(String[] args) {
 
 		PeerCommand peerCommand = new PeerCommand();
+		PeerHostCommand peerHostCommand = new PeerHostCommand();
 		JCommander jCommander = JCommander.newBuilder()
+				.addCommand(HitUCCPeerHostSystem.PEER_HOST_ROLE, peerHostCommand)
 				.addCommand(HitUCCPeerSystem.PEER_ROLE, peerCommand)
 				.build();
 
@@ -27,8 +29,11 @@ public class HitUCCApp {
 			}
 
 			switch (jCommander.getParsedCommand()) {
+				case HitUCCPeerHostSystem.PEER_HOST_ROLE:
+					HitUCCPeerHostSystem.start(ACTOR_SYSTEM_NAME, peerHostCommand.workers, peerHostCommand.input, peerHostCommand.csvDelimiter.charAt(0), peerHostCommand.csvSkipHeader, peerHostCommand.output, peerHostCommand.dataDuplicationFactor, peerHostCommand.nullEqualsNull, peerHostCommand.host, peerHostCommand.port);
+					break;
 				case HitUCCPeerSystem.PEER_ROLE:
-					HitUCCPeerSystem.start(ACTOR_SYSTEM_NAME, peerCommand.workers, peerCommand.input, peerCommand.csvDelimiter.charAt(0), peerCommand.csvSkipHeader, peerCommand.output, peerCommand.dataDuplicationFactor, peerCommand.nullEqualsNull, peerCommand.host, peerCommand.port);
+					HitUCCPeerSystem.start(ACTOR_SYSTEM_NAME, peerCommand.workers, peerCommand.host, peerCommand.port, peerCommand.masterhost, peerCommand.masterport);
 					break;
 				default:
 					throw new AssertionError();
@@ -47,7 +52,8 @@ public class HitUCCApp {
 
 	abstract static class CommandBase {
 
-		public static final int DEFAULT_PEER_PORT = 7876;
+		public static final int DEFAULT_PEER_HOST_PORT = 7876;
+		public static final int DEFAULT_PEER_PORT = 7877;
 		public static final int DEFAULT_WORKERS = 4;
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 5;
 		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
@@ -73,6 +79,21 @@ public class HitUCCApp {
 
 	@Parameters(commandDescription = "start a peer to peer actor system")
 	static class PeerCommand extends CommandBase {
+
+		@Parameter(names = {"-mp", "--masterport"}, description = "port of the master", required = false)
+		int masterport = DEFAULT_PEER_HOST_PORT;
+
+		@Parameter(names = {"-mh", "--masterhost"}, description = "host name or IP of the master", required = true)
+		String masterhost;
+
+		@Override
+		int getDefaultPort() {
+			return DEFAULT_PEER_PORT;
+		}
+	}
+
+	@Parameters(commandDescription = "start a peer to peer host actor system")
+	static class PeerHostCommand extends CommandBase {
 
 		@Parameter(names = {"-ddf", "--dataDuplicationFactor"},
 				description = "Describes how often the data should be duplicated and send to other nodes in the network. Determines the batch count.",
@@ -106,7 +127,7 @@ public class HitUCCApp {
 
 		@Override
 		int getDefaultPort() {
-			return DEFAULT_PEER_PORT;
+			return DEFAULT_PEER_HOST_PORT;
 		}
 	}
 }

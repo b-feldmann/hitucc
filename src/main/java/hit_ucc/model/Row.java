@@ -1,6 +1,8 @@
 package hit_ucc.model;
 
-public class Row {
+import java.io.Serializable;
+
+public class Row implements Serializable {
 	public final int anchor;
 	public final String [] values;
 

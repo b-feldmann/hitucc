@@ -16,36 +16,14 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 	public static final String PEER_ROLE = "peer";
 
-	public static void start(String actorSystemName, int workers, String input, char csvDelimiter, boolean csvSkipHeader, String output, int dataDuplicationFactor, boolean nullEqualsNull, String host, int port) {
-		final Config config = createConfiguration(actorSystemName, PEER_ROLE, host, port, host, port);
+	public static void start(String actorSystemName, int workers, String host, int port, String hostHost, int hostPort) {
+		final Config config = createConfiguration(actorSystemName, PEER_ROLE, host, port, hostHost, hostPort);
 		final ActorSystem system = createSystem(actorSystemName, config);
 
-		List<ActorRef> workerRefs = new ArrayList<>();
-
 		Cluster.get(system).registerOnMemberUp(() -> {
-			system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
-			//	system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
-
 			for (int i = 0; i < workers; i++) {
-				ActorRef ref = system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i);
-				workerRefs.add(ref);
+				ActorRef ref = system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + (i + workers));
 			}
-
-			String[][] table = null;
-			try {
-				table = ReadDataTable.readTable(input, csvDelimiter, csvSkipHeader);
-			} catch (IOException e) {
-				e.printStackTrace();
-				System.exit(0);
-			}
-
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-
-			workerRefs.get(0).tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull), ActorRef.noSender());
 		});
 
 		Cluster.get(system).registerOnMemberRemoved(() -> {
