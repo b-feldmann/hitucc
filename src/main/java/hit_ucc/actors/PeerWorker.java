@@ -55,6 +55,8 @@ public class PeerWorker extends AbstractActor {
 
 	private TaskMessage task;
 
+	long treeSearchStart = 0;
+
 	public static Props props() {
 		return Props.create(PeerWorker.class);
 	}
@@ -168,6 +170,14 @@ public class PeerWorker extends AbstractActor {
 		List<Row>[] batches = new ArrayList[batchCount];
 		for (int i = 0; i < batchCount; i++) batches[i] = new ArrayList<>();
 
+		long start = System.currentTimeMillis();
+		Map<String[], Integer> cardinalities = new HashMap<>();
+		for (int i = 0; i < table.length; i++) {
+			cardinalities.put(table[i], new HashSet<>(Arrays.asList(table[i])).size());
+		}
+		Arrays.sort(table, (o1, o2) -> -cardinalities.get(o1).compareTo(cardinalities.get(o2)));
+		this.log.info("Sorting Cost: {}", System.currentTimeMillis() - start);
+
 		int triangleIndex = 0;
 		for (String[] rowData : table) {
 			int anchor = 0;
@@ -201,17 +211,19 @@ public class PeerWorker extends AbstractActor {
 			Row[] arrayBatch = new Row[batch.size()];
 			batch.toArray(arrayBatch);
 			if (workerIndex == colleagues.size()) {
-				int splitCount = (int) Math.ceil((double) arrayBatch.length / MAX_SPLIT);
-				for (int k = 0; k < arrayBatch.length; k += MAX_SPLIT) {
-					Row[] arrayBatchSplit = Arrays.copyOfRange(arrayBatch, k, Math.min(k + MAX_SPLIT, arrayBatch.length));
-					this.self().tell(new FindDifferenceSetFromBatchSplitMessage(splitCount, arrayBatchSplit, i, task.isNullEqualsNull()), this.self());
-				}
+//				int splitCount = (int) Math.ceil((double) arrayBatch.length / MAX_SPLIT);
+//				for (int k = 0; k < arrayBatch.length; k += MAX_SPLIT) {
+//					Row[] arrayBatchSplit = Arrays.copyOfRange(arrayBatch, k, Math.min(k + MAX_SPLIT, arrayBatch.length));
+//					this.self().tell(new FindDifferenceSetFromBatchSplitMessage(splitCount, arrayBatchSplit, i, task.isNullEqualsNull()), this.self());
+//				}
+				this.self().tell(new FindDifferenceSetFromBatchMessage(arrayBatch, i, task.isNullEqualsNull()), this.self());
 			} else {
-				int splitCount = (int) Math.ceil((double) arrayBatch.length / MAX_SPLIT);
-				for (int k = 0; k < arrayBatch.length; k += MAX_SPLIT) {
-					Row[] arrayBatchSplit = Arrays.copyOfRange(arrayBatch, k, Math.min(k + MAX_SPLIT, arrayBatch.length));
-					colleagues.get(workerIndex).tell(new FindDifferenceSetFromBatchSplitMessage(splitCount, arrayBatchSplit, i, task.isNullEqualsNull()), this.self());
-				}
+//				int splitCount = (int) Math.ceil((double) arrayBatch.length / MAX_SPLIT);
+//				for (int k = 0; k < arrayBatch.length; k += MAX_SPLIT) {
+//					Row[] arrayBatchSplit = Arrays.copyOfRange(arrayBatch, k, Math.min(k + MAX_SPLIT, arrayBatch.length));
+//					colleagues.get(workerIndex).tell(new FindDifferenceSetFromBatchSplitMessage(splitCount, arrayBatchSplit, i, task.isNullEqualsNull()), this.self());
+//				}
+				colleagues.get(workerIndex).tell(new FindDifferenceSetFromBatchMessage(arrayBatch, i, task.isNullEqualsNull()), this.self());
 			}
 
 			workerIndex++;
@@ -317,6 +329,7 @@ public class PeerWorker extends AbstractActor {
 				}
 
 				this.log.info("Start Tree Search");
+				treeSearchStart = System.currentTimeMillis();
 				BitSet x = new BitSet(columnsInTable);
 				BitSet y = new BitSet(columnsInTable);
 				addRootTreeSearchNode();
@@ -489,7 +502,7 @@ public class PeerWorker extends AbstractActor {
 
 	private void report(BitSet ucc) {
 //		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
-		this.log.info("UCC: {}", toUCC(ucc));
+//		this.log.info("UCC: {}", toUCC(ucc));
 
 		discoveredUCCs.add(ucc);
 		for (ActorRef worker : colleagues) {
@@ -531,6 +544,10 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(ReportAndShutdownMessage message) {
+		if(treeSearchStart != 0) {
+			this.log.info("Tree Search Cost: {}", System.currentTimeMillis() - treeSearchStart);
+		}
+
 		for (BitSet ucc : discoveredUCCs) {
 //			this.log.info("UCC: {}", toUCC(ucc));
 		}
