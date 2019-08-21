@@ -8,7 +8,7 @@ import java.util.List;
 public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrategy {
 	private List<BitSet> differenceSets;
 	private List<BitSet> uniqueSortedDifferenceSets;
-	private final int MAX_LENGTH = 10000;
+	private final int MAX_LENGTH = 1000001;
 
 	public JustAddSortDifferenceSetStrategy() {
 		this.differenceSets = new ArrayList<>();
@@ -34,14 +34,26 @@ public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrate
 
 	private List<BitSet> merge(List<BitSet> setsA, List<BitSet> setsB) {
 		List<BitSet> merged = new ArrayList<>();
-		for (int a = 0, b = 0; a < setsA.size() || b < setsB.size(); ) {
+
+		int startA = 0;
+		int startB = 0;
+
+		if (setsA.size() > 0 && setsA.get(startA).cardinality() < setsB.get(startB).cardinality()) {
+			merged.add(setsA.get(startA));
+			startA++;
+		} else {
+			merged.add(setsB.get(startB));
+			startB++;
+		}
+
+		for (int a = startA, b = startB; a < setsA.size() || b < setsB.size(); ) {
 			if (a == setsA.size()) {
-				if (merged.size() > 0 && !setsB.get(b).equals(merged.get(merged.size() - 1))) {
+				if (!setsB.get(b).equals(merged.get(merged.size() - 1))) {
 					merged.add(setsB.get(b));
 				}
 				b++;
 			} else if (b == setsB.size()) {
-				if (merged.size() > 0 && !setsA.get(a).equals(merged.get(merged.size() - 1))) {
+				if (!setsA.get(a).equals(merged.get(merged.size() - 1))) {
 					merged.add(setsA.get(a));
 				}
 				a++;

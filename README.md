@@ -36,6 +36,10 @@ To make sure that your project is set up correctly in an IDE, you can run the te
 
 ## Execution instructions
 
+### sbt - docker
+- `docker:stage` - create dockerfile
+- `docker:publishLocal` - create docker container 
+
 Just run the main class `hit_ucc.HitUCCApp`, respectively, from within your IDE or from the command line. The app will then print an overview of the different possible parameters. Append parameters of your choice to the run configuration in your IDE or to your command line call, as exemplified below:
 * Parameters to start a peer to peer system with two local workers: `peer --workers 2 -i bridges.csv`
 * To start a peer to peer system with custom data duplication factor: `peer --workers 2 -i bridges.csv -ddf 8`

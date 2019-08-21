@@ -15,10 +15,7 @@ import hit_ucc.HitUCCPeerSystem;
 import hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
 import hit_ucc.actors.messages.FindDifferenceSetFromBatchSplitMessage;
 import hit_ucc.actors.messages.TaskMessage;
-import hit_ucc.behaviour.differenceSets.BucketingCalculateMinimalSetsStrategy;
-import hit_ucc.behaviour.differenceSets.DifferenceSetDetector;
-import hit_ucc.behaviour.differenceSets.HashAddDifferenceSetStrategy;
-import hit_ucc.behaviour.differenceSets.TwoSidedMergeMinimalSetsStrategy;
+import hit_ucc.behaviour.differenceSets.*;
 import hit_ucc.behaviour.oracle.HittingSetOracle;
 import hit_ucc.model.Row;
 import hit_ucc.model.TreeSearchNode;
@@ -63,6 +60,7 @@ public class PeerWorker extends AbstractActor {
 
 	private void createDifferenceSetDetector() {
 		differenceSetDetector = new DifferenceSetDetector(new HashAddDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnsInTable), new TwoSidedMergeMinimalSetsStrategy());
+//		differenceSetDetector = new DifferenceSetDetector(new JustAddSortDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnsInTable), new TwoSidedMergeMinimalSetsStrategy());
 	}
 
 	@Override
@@ -152,10 +150,20 @@ public class PeerWorker extends AbstractActor {
 		String[][] table = task.getInputFile();
 		int anchorCount = task.getDataDuplicationFactor();
 
-		if (anchorCount <= 1) {
-			if (anchorCount < 1) {
-				this.log.error("Data Duplication Factor is lower than 1. Can't discover UCCs without without a single data batch. Factor is set to 1");
+		if (anchorCount < 1) {
+			this.log.info("Connected to " + colleagues.size() + " worker.");
+			anchorCount = 0;
+			int batchCount = 0;
+			while (batchCount < colleagues.size() + 1) {
+				anchorCount++;
+				batchCount = 0;
+				for (int i = 0; i < anchorCount; i++) {
+					batchCount += anchorCount - i;
+				}
 			}
+			this.log.info("The Data Duplication Factor is set to auto: Factor is set to " + anchorCount);
+		}
+		if (anchorCount == 1) {
 			anchorCount = 1;
 			this.log.info("The Data Duplication Factor is set to 1. The program therefore cannot distribute the algorithm. This is not that bad, but it slows down the execution time significantly.");
 		}

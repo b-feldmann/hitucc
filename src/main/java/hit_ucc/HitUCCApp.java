@@ -55,7 +55,7 @@ public class HitUCCApp {
 		public static final int DEFAULT_PEER_HOST_PORT = 7876;
 		public static final int DEFAULT_PEER_PORT = 7877;
 		public static final int DEFAULT_WORKERS = 4;
-		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 5;
+		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
 		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
 		public static final boolean DEFAULT_CSV_SKIP_HEADER = true;
 
