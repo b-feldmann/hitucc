@@ -15,7 +15,13 @@ import hit_ucc.HitUCCPeerSystem;
 import hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
 import hit_ucc.actors.messages.FindDifferenceSetFromBatchSplitMessage;
 import hit_ucc.actors.messages.TaskMessage;
-import hit_ucc.behaviour.differenceSets.*;
+import hit_ucc.behaviour.dictionary.BitCompressedDictionaryEncoder;
+import hit_ucc.behaviour.dictionary.DictionaryEncoder;
+import hit_ucc.behaviour.dictionary.IColumn;
+import hit_ucc.behaviour.differenceSets.BucketingCalculateMinimalSetsStrategy;
+import hit_ucc.behaviour.differenceSets.DifferenceSetDetector;
+import hit_ucc.behaviour.differenceSets.HashAddDifferenceSetStrategy;
+import hit_ucc.behaviour.differenceSets.TwoSidedMergeMinimalSetsStrategy;
 import hit_ucc.behaviour.oracle.HittingSetOracle;
 import hit_ucc.model.Row;
 import hit_ucc.model.TreeSearchNode;
@@ -29,38 +35,30 @@ public class PeerWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-worker";
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
-
+	long treeSearchStart = 0;
 	private Random random = new Random();
-
 	private List<ActorRef> colleagues = new ArrayList<>();
 	private List<WorkerState> colleaguesStates = new ArrayList<>();
-
 	private WorkerState selfState = WorkerState.NOT_STARTED;
 	private int splitCount = 0;
-	private int columnsInTable = 0;
+	private int columnCount = 0;
 	private int maxLocalTreeDepth = 10;
 	private int currentLocalTreeDepth = 0;
-
 	private BitSet[] minimalDifferenceSets = new BitSet[0];
 	private List<BitSet> discoveredUCCs = new ArrayList<>();
-
 	private DifferenceSetDetector differenceSetDetector;
-
 	private List<TreeSearchNode> treeSearchNodes = new ArrayList<>();
 	private TreeSearchNode currentTreeNode;
 	private long currentTreeNodeId = 0;
-
 	private TaskMessage task;
-
-	long treeSearchStart = 0;
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);
 	}
 
 	private void createDifferenceSetDetector() {
-		differenceSetDetector = new DifferenceSetDetector(new HashAddDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnsInTable), new TwoSidedMergeMinimalSetsStrategy());
-//		differenceSetDetector = new DifferenceSetDetector(new JustAddSortDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnsInTable), new TwoSidedMergeMinimalSetsStrategy());
+		differenceSetDetector = new DifferenceSetDetector(new HashAddDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnCount), new TwoSidedMergeMinimalSetsStrategy());
+//		differenceSetDetector = new DifferenceSetDetector(new JustAddSortDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnCount), new TwoSidedMergeMinimalSetsStrategy());
 	}
 
 	@Override
@@ -245,10 +243,28 @@ public class PeerWorker extends AbstractActor {
 		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
 			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
 		}
-		columnsInTable = message.getRows()[0].values.length;
+		columnCount = message.getRows()[0].values.length;
 		if (differenceSetDetector == null) createDifferenceSetDetector();
 
 		this.log.info("Received Row Batch Split {}/{} [id:{}] of size {}", splitCount + 1, message.getSplitCount(), message.getBatchId(), message.getRows().length);
+
+//		DictionaryEncoder encoder[] = new DictionaryEncoder[columnCount];
+		DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
+		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(message.getRows().length);
+		for (int rowIndex = 0; rowIndex < message.getRows().length; rowIndex++) {
+			Row row = message.getRows()[rowIndex];
+			for (int columnIndex = 0; columnIndex < row.values.length; columnIndex++) {
+				encoder[columnIndex].addValue(row.values[columnIndex]);
+			}
+		}
+		int[][] intRows = new int[message.getRows().length][columnCount];
+		for (int i = 0; i < columnCount; i++) {
+			IColumn column = encoder[i].getColumn();
+			for (int rowIndex = 0; rowIndex < column.size(); rowIndex++) {
+				intRows[rowIndex][i] = column.getValue(rowIndex);
+			}
+		}
+		this.log.info("Dictionary Encoded Everything");
 
 		for (int indexA = 0; indexA < message.getRows().length; indexA++) {
 			for (int indexB = indexA + 1; indexB < message.getRows().length; indexB++) {
@@ -256,7 +272,8 @@ public class PeerWorker extends AbstractActor {
 				Row rowB = message.getRows()[indexB];
 				if (rowA.anchor == rowB.anchor && rowA.anchor != message.getBatchId()) continue;
 
-				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, message.isNullEqualsNull());
+//				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, message.isNullEqualsNull());
+				differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], message.isNullEqualsNull());
 			}
 		}
 
@@ -275,10 +292,28 @@ public class PeerWorker extends AbstractActor {
 		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
 			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
 		}
-		columnsInTable = message.getRows()[0].values.length;
+		columnCount = message.getRows()[0].values.length;
 		if (differenceSetDetector == null) createDifferenceSetDetector();
 
 		this.log.info("Received Row Batch[id:{}] of size {}", message.getBatchId(), message.getRows().length);
+
+		DictionaryEncoder encoder[] = new DictionaryEncoder[columnCount];
+//		DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
+		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(message.getRows().length);
+		for (int rowIndex = 0; rowIndex < message.getRows().length; rowIndex++) {
+			Row row = message.getRows()[rowIndex];
+			for (int columnIndex = 0; columnIndex < row.values.length; columnIndex++) {
+				encoder[columnIndex].addValue(row.values[columnIndex]);
+			}
+		}
+		int[][] intRows = new int[message.getRows().length][columnCount];
+		for (int i = 0; i < columnCount; i++) {
+			IColumn column = encoder[i].getColumn();
+			for (int rowIndex = 0; rowIndex < column.size(); rowIndex++) {
+				intRows[rowIndex][i] = column.getValue(rowIndex);
+			}
+		}
+		this.log.info("Dictionary Encoded Everything");
 
 		for (int indexA = 0; indexA < message.getRows().length; indexA++) {
 			for (int indexB = indexA + 1; indexB < message.getRows().length; indexB++) {
@@ -286,7 +321,8 @@ public class PeerWorker extends AbstractActor {
 				Row rowB = message.getRows()[indexB];
 				if (rowA.anchor == rowB.anchor && rowA.anchor != message.getBatchId()) continue;
 
-				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, message.isNullEqualsNull());
+//				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, message.isNullEqualsNull());
+				differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], message.isNullEqualsNull());
 			}
 		}
 
@@ -333,16 +369,16 @@ public class PeerWorker extends AbstractActor {
 				}
 
 				for (ActorRef worker : colleagues) {
-					worker.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnsInTable), this.self());
+					worker.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnCount), this.self());
 				}
 
 				this.log.info("Start Tree Search");
 				treeSearchStart = System.currentTimeMillis();
-				BitSet x = new BitSet(columnsInTable);
-				BitSet y = new BitSet(columnsInTable);
+				BitSet x = new BitSet(columnCount);
+				BitSet y = new BitSet(columnCount);
 				addRootTreeSearchNode();
 				addChildToTreeSearchNode();
-				this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnsInTable, currentTreeNodeId), this.self());
+				this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 			}
 		}
 
@@ -361,7 +397,7 @@ public class PeerWorker extends AbstractActor {
 
 	private void handle(SyncDifferenceSetsMessage message) {
 		minimalDifferenceSets = message.differenceSets;
-		columnsInTable = message.columnsInTable;
+		columnCount = message.columnsInTable;
 	}
 
 	private void tryToMerge() {
@@ -488,7 +524,7 @@ public class PeerWorker extends AbstractActor {
 	private void handleLocal(BitSet x, BitSet y, int length, BitSet[] differenceSets) {
 		currentLocalTreeDepth += 1;
 
-		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, columnsInTable);
+		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, columnCount);
 		switch (result) {
 			case MINIMAL:
 				this.report(x);
@@ -509,7 +545,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void report(BitSet ucc) {
-//		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnsInTable));
+//		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnCount));
 //		this.log.info("UCC: {}", toUCC(ucc));
 
 		discoveredUCCs.add(ucc);
@@ -519,19 +555,19 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void split(BitSet x, BitSet y, int next, BitSet[] differenceSets) {
-		if (next < columnsInTable) {
+		if (next < columnCount) {
 			BitSet xNew = copyBitSet(x, next);
 			xNew.set(next);
 			ActorRef randomRef = getRandomColleague();
 			addChildToTreeSearchNode();
-			randomRef.tell(new TreeNodeWorkMessage(xNew, y, next + 1, minimalDifferenceSets, columnsInTable, currentTreeNodeId), this.self());
+			randomRef.tell(new TreeNodeWorkMessage(xNew, y, next + 1, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 
 			BitSet yNew = copyBitSet(y, next);
 			yNew.set(next);
 			if (currentLocalTreeDepth >= maxLocalTreeDepth) {
 				randomRef = getRandomColleague();
 				addChildToTreeSearchNode();
-				randomRef.tell(new TreeNodeWorkMessage(x, yNew, next + 1, minimalDifferenceSets, columnsInTable, currentTreeNodeId), this.self());
+				randomRef.tell(new TreeNodeWorkMessage(x, yNew, next + 1, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 			} else {
 				handleLocal(x, yNew, next + 1, minimalDifferenceSets);
 			}
@@ -552,7 +588,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(ReportAndShutdownMessage message) {
-		if(treeSearchStart != 0) {
+		if (treeSearchStart != 0) {
 			this.log.info("Tree Search Cost: {}", System.currentTimeMillis() - treeSearchStart);
 		}
 

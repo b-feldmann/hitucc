@@ -1,6 +1,8 @@
 val akkaVersion = "2.5.24"
 val scala = "2.13.0"
 
+enablePlugins(TestNGPlugin)
+
 // to be able to use exit(int) I fork the jvm and kill the fork and not the sbt-shell
 fork in run := true
 

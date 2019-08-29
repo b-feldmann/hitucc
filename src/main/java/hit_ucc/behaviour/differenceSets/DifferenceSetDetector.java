@@ -38,65 +38,6 @@ public class DifferenceSetDetector {
 		return output;
 	}
 
-	public BitSet addDifferenceSet(String[] rowA, String[] rowB) {
-		return addDifferenceSet(rowA, rowB, false);
-	}
-
-	public BitSet addDifferenceSet(String[] rowA, String[] rowB, boolean nullEqualsNull) {
-		dirty = true;
-
-		BitSet bitSet = new BitSet(rowA.length);
-
-		for (int i = 0; i < rowA.length; i++) {
-			if (rowA[i] == null) {
-				if (!nullEqualsNull || rowB[i] != null) bitSet.set(i);
-			} else if (!rowA[i].equals(rowB[i])) {
-				bitSet.set(i);
-			}
-		}
-
-		return addStrategy.addDifferenceSet(bitSet);
-	}
-
-	/**
-	 * Return all minimal difference Sets
-	 */
-	public BitSet[] getMinimalDifferenceSets() {
-		if (dirty) {
-			dirty = false;
-			if (minimalDifferenceSets.length == 0) {
-				minimalDifferenceSets = calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable());
-				addStrategy.clearState();
-				return minimalDifferenceSets;
-			}
-
-			minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(
-					minimalDifferenceSets,
-					calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable())
-			);
-			addStrategy.clearState();
-			return minimalDifferenceSets;
-		}
-
-		return minimalDifferenceSets;
-	}
-
-	public BitSet[] mergeMinimalDifferenceSets(BitSet[] otherMinimalSets) {
-		return minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(getMinimalDifferenceSets(), otherMinimalSets);
-	}
-
-	public void clearState(){
-		addStrategy.clearState();
-		setDirty();
-	}
-
-	/**
-	 * The next time all minimal difference sets are requested they are recalculated
-	 */
-	public void setDirty() {
-		this.dirty = true;
-	}
-
 	protected static int testMinimalHittingSet(BitSet setA, BitSet setB) {
 		if (setA.cardinality() == 0 || setB.cardinality() == 0) {
 			if (setA.cardinality() == setB.cardinality()) return EQUAL_SETS;
@@ -148,5 +89,82 @@ public class DifferenceSetDetector {
 		}
 
 		minimalBitSets.add(potentialMinimal);
+	}
+
+	public BitSet addDifferenceSet(String[] rowA, String[] rowB) {
+		return addDifferenceSet(rowA, rowB, false);
+	}
+
+	public BitSet addDifferenceSet(String[] rowA, String[] rowB, boolean nullEqualsNull) {
+		dirty = true;
+
+		BitSet bitSet = new BitSet(rowA.length);
+
+		for (int i = 0; i < rowA.length; i++) {
+			if (rowA[i] == null) {
+				if (!nullEqualsNull || rowB[i] != null) bitSet.set(i);
+			} else if (!rowA[i].equals(rowB[i])) {
+				bitSet.set(i);
+			}
+		}
+
+		return addStrategy.addDifferenceSet(bitSet);
+	}
+
+	public BitSet addDifferenceSet(int[] rowA, int[] rowB, boolean nullEqualsNull) {
+		return addDifferenceSet(rowA, rowB);
+	}
+
+	public BitSet addDifferenceSet(int[] rowA, int[] rowB) {
+		dirty = true;
+
+		BitSet bitSet = new BitSet(rowA.length);
+
+		for (int i = 0; i < rowA.length; i++) {
+			if (rowA[i] != rowB[i]) {
+				bitSet.set(i);
+			}
+		}
+
+		return addStrategy.addDifferenceSet(bitSet);
+	}
+
+	/**
+	 * Return all minimal difference Sets
+	 */
+	public BitSet[] getMinimalDifferenceSets() {
+		if (dirty) {
+			dirty = false;
+			if (minimalDifferenceSets.length == 0) {
+				minimalDifferenceSets = calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable());
+				addStrategy.clearState();
+				return minimalDifferenceSets;
+			}
+
+			minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(
+					minimalDifferenceSets,
+					calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable())
+			);
+			addStrategy.clearState();
+			return minimalDifferenceSets;
+		}
+
+		return minimalDifferenceSets;
+	}
+
+	public BitSet[] mergeMinimalDifferenceSets(BitSet[] otherMinimalSets) {
+		return minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(getMinimalDifferenceSets(), otherMinimalSets);
+	}
+
+	public void clearState() {
+		addStrategy.clearState();
+		setDirty();
+	}
+
+	/**
+	 * The next time all minimal difference sets are requested they are recalculated
+	 */
+	public void setDirty() {
+		this.dirty = true;
 	}
 }
