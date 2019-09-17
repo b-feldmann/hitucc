@@ -53,16 +53,16 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 		});
 
 		Cluster.get(system).registerOnMemberRemoved(() -> {
-//			try {
-//				String[] paths = new String[]{System.getProperty("user.dir"), System.getProperty("user.dir").concat("/data"), System.getProperty("user.dir").concat("/c/Users"), System.getProperty("c/Users"), "c/Users"};
-//
-//				for (String path : paths) {
-//					System.out.println("Path: " + path);
-//					getResourceFiles(path).forEach(System.out::println);
-//				}
-//			} catch (IOException e) {
-//				e.printStackTrace();
-//			}
+			try {
+				String[] paths = new String[]{System.getProperty("user.dir"), System.getProperty("user.dir").concat("/data"), System.getProperty("user.dir").concat("/c/Users"), System.getProperty("c/Users"), "c/Users"};
+
+				for (String path : paths) {
+					System.out.println("Path: " + path);
+					getResourceFiles(path).forEach(System.out::println);
+				}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 
 			System.out.println("Member removed");
 		});

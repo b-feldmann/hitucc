@@ -231,11 +231,20 @@ public class PeerWorker extends AbstractActor {
 				}
 			}
 		} else {
-			List<Row> batchA = batches.getBatch(currentTask.getSetA());
-			List<Row> batchB = batches.getBatch(currentTask.getSetB());
-			for (Row rowA : batchA) {
-				for (Row rowB : batchB) {
-					differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, nullEqualsNull);
+			if (currentTask.getSetA() == currentTask.getSetB()) {
+				List<Row> batch = batches.getBatch(currentTask.getSetA());
+				for (int indexA = 0; indexA < batch.size(); indexA++) {
+					for (int indexB = indexA + 1; indexB < batch.size(); indexB++) {
+						differenceSetDetector.addDifferenceSet(batch.get(indexA).values, batch.get(indexB).values, nullEqualsNull);
+					}
+				}
+			} else {
+				List<Row> batchA = batches.getBatch(currentTask.getSetA());
+				List<Row> batchB = batches.getBatch(currentTask.getSetB());
+				for (Row rowA : batchA) {
+					for (Row rowB : batchB) {
+						differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, nullEqualsNull);
+					}
 				}
 			}
 		}

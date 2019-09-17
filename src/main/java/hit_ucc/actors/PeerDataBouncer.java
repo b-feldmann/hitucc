@@ -155,8 +155,6 @@ public class PeerDataBouncer extends AbstractActor {
 			localWorker.get(i).tell(new FindDifferenceSetFromBatchMessage(tasksPerWorker[i], batchCount, task.isNullEqualsNull()), this.self());
 		}
 
-		this.log.info("Dispatched {} rows. (duplication factor of {})", batchCount * table.length, batchCount);
-
 //		endEverything();
 	}
 
