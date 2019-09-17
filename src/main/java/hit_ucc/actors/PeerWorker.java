@@ -12,10 +12,7 @@ import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import hit_ucc.HitUCCPeerHostSystem;
 import hit_ucc.HitUCCPeerSystem;
-import hit_ucc.actors.messages.FindDifferenceSetFromBatchMessage;
-import hit_ucc.actors.messages.FindDifferenceSetFromBatchSplitMessage;
-import hit_ucc.actors.messages.TaskMessage;
-import hit_ucc.behaviour.dictionary.BitCompressedDictionaryEncoder;
+import hit_ucc.actors.messages.*;
 import hit_ucc.behaviour.dictionary.DictionaryEncoder;
 import hit_ucc.behaviour.dictionary.IColumn;
 import hit_ucc.behaviour.differenceSets.BucketingCalculateMinimalSetsStrategy;
@@ -23,21 +20,28 @@ import hit_ucc.behaviour.differenceSets.DifferenceSetDetector;
 import hit_ucc.behaviour.differenceSets.HashAddDifferenceSetStrategy;
 import hit_ucc.behaviour.differenceSets.TwoSidedMergeMinimalSetsStrategy;
 import hit_ucc.behaviour.oracle.HittingSetOracle;
+import hit_ucc.model.Batches;
 import hit_ucc.model.Row;
+import hit_ucc.model.SingleDifferenceSetTask;
 import hit_ucc.model.TreeSearchNode;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.BitSet;
+import java.util.List;
+import java.util.Random;
 
 public class PeerWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-worker";
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
+	private final boolean useDictionaryEncoding = true;
 	long treeSearchStart = 0;
 	private Random random = new Random();
 	private List<ActorRef> colleagues = new ArrayList<>();
+	private ActorRef dataBouncer = null;
 	private List<WorkerState> colleaguesStates = new ArrayList<>();
 	private WorkerState selfState = WorkerState.NOT_STARTED;
 	private int splitCount = 0;
@@ -50,7 +54,10 @@ public class PeerWorker extends AbstractActor {
 	private List<TreeSearchNode> treeSearchNodes = new ArrayList<>();
 	private TreeSearchNode currentTreeNode;
 	private long currentTreeNodeId = 0;
-	private TaskMessage task;
+
+	private Batches batches;
+	private List<SingleDifferenceSetTask> tasks;
+	private boolean nullEqualsNull = false;
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);
@@ -88,9 +95,8 @@ public class PeerWorker extends AbstractActor {
 		return receiveBuilder()
 				.match(CurrentClusterState.class, this::handle)
 				.match(RegistrationMessage.class, this::handle)
-				.match(TaskMessage.class, this::handle)
 				.match(FindDifferenceSetFromBatchMessage.class, this::handle)
-				.match(FindDifferenceSetFromBatchSplitMessage.class, this::handle)
+				.match(SendDataBatchMessage.class, this::handle)
 				.match(AskForMergeMessage.class, this::handle)
 				.match(AcceptMergeMessage.class, this::handle)
 				.match(DeclineMergeMessage.class, this::handle)
@@ -132,205 +138,117 @@ public class PeerWorker extends AbstractActor {
 
 		this.context().watch(this.sender());
 
-		colleagues.add(this.sender());
-		colleaguesStates.add(WorkerState.NOT_STARTED);
-		this.log.info("Registered {}; {} registered colleagues", this.sender().path().name(), colleagues.size());
+		if (this.sender().path().name().equals(PeerDataBouncer.DEFAULT_NAME)) {
+			dataBouncer = this.sender();
+			this.log.info("Registered {} DataBouncer", this.sender().path().name());
+		} else {
+			colleagues.add(this.sender());
+			colleaguesStates.add(WorkerState.NOT_STARTED);
+			this.log.info("Registered {}; {} registered colleagues", this.sender().path().name(), colleagues.size());
+		}
+
 		this.sender().tell(new RegistrationMessage(), this.self());
-
-//		if (task != null) handle(task);
-	}
-
-	private void handle(TaskMessage task) {
-		this.task = task;
-//		if (colleagues.size() < 1) return;
-		this.log.info("Received Task Message with table of size [row: {}, columns: {}]", task.getInputFile().length, task.getInputFile()[0].length);
-
-		String[][] table = task.getInputFile();
-		int anchorCount = task.getDataDuplicationFactor();
-
-		if (anchorCount < 1) {
-			this.log.info("Connected to " + colleagues.size() + " worker.");
-			anchorCount = 0;
-			int batchCount = 0;
-			while (batchCount < colleagues.size() + 1) {
-				anchorCount++;
-				batchCount = 0;
-				for (int i = 0; i < anchorCount; i++) {
-					batchCount += anchorCount - i;
-				}
-			}
-			this.log.info("The Data Duplication Factor is set to auto: Factor is set to " + anchorCount);
-		}
-		if (anchorCount == 1) {
-			anchorCount = 1;
-			this.log.info("The Data Duplication Factor is set to 1. The program therefore cannot distribute the algorithm. This is not that bad, but it slows down the execution time significantly.");
-		}
-
-		int batchCount = 0;
-		for (int i = 0; i < anchorCount; i++) {
-			batchCount += i + 1;
-		}
-
-		this.log.info("Divided data into {} batches", batchCount);
-
-		List<Row>[] batches = new ArrayList[batchCount];
-		for (int i = 0; i < batchCount; i++) batches[i] = new ArrayList<>();
-
-		long start = System.currentTimeMillis();
-		Map<String[], Integer> cardinalities = new HashMap<>();
-		for (int i = 0; i < table.length; i++) {
-			cardinalities.put(table[i], new HashSet<>(Arrays.asList(table[i])).size());
-		}
-		Arrays.sort(table, (o1, o2) -> -cardinalities.get(o1).compareTo(cardinalities.get(o2)));
-		this.log.info("Sorting Cost: {}", System.currentTimeMillis() - start);
-
-		int triangleIndex = 0;
-		for (String[] rowData : table) {
-			int anchor = 0;
-			for (int i = 0; i < triangleIndex; i++) {
-				anchor += anchorCount - i;
-			}
-
-			Row row = new Row(anchor, rowData);
-			int lastIndex = 0;
-			for (int i = 0; i < anchorCount; i++) {
-				if (i == 0) {
-					lastIndex = triangleIndex;
-					batches[lastIndex].add(row);
-				} else if (i <= triangleIndex) {
-					lastIndex += anchorCount - i;
-					batches[lastIndex].add(row);
-				} else {
-					lastIndex += 1;
-					batches[lastIndex].add(row);
-				}
-			}
-
-			triangleIndex++;
-			if (triangleIndex >= anchorCount) triangleIndex = 0;
-		}
-
-		int MAX_SPLIT = 100;
-		int workerIndex = 0;
-		for (int i = 0; i < batches.length; i++) {
-			List<Row> batch = batches[i];
-			Row[] arrayBatch = new Row[batch.size()];
-			batch.toArray(arrayBatch);
-			if (workerIndex == colleagues.size()) {
-//				int splitCount = (int) Math.ceil((double) arrayBatch.length / MAX_SPLIT);
-//				for (int k = 0; k < arrayBatch.length; k += MAX_SPLIT) {
-//					Row[] arrayBatchSplit = Arrays.copyOfRange(arrayBatch, k, Math.min(k + MAX_SPLIT, arrayBatch.length));
-//					this.self().tell(new FindDifferenceSetFromBatchSplitMessage(splitCount, arrayBatchSplit, i, task.isNullEqualsNull()), this.self());
-//				}
-				this.self().tell(new FindDifferenceSetFromBatchMessage(arrayBatch, i, task.isNullEqualsNull()), this.self());
-			} else {
-//				int splitCount = (int) Math.ceil((double) arrayBatch.length / MAX_SPLIT);
-//				for (int k = 0; k < arrayBatch.length; k += MAX_SPLIT) {
-//					Row[] arrayBatchSplit = Arrays.copyOfRange(arrayBatch, k, Math.min(k + MAX_SPLIT, arrayBatch.length));
-//					colleagues.get(workerIndex).tell(new FindDifferenceSetFromBatchSplitMessage(splitCount, arrayBatchSplit, i, task.isNullEqualsNull()), this.self());
-//				}
-				colleagues.get(workerIndex).tell(new FindDifferenceSetFromBatchMessage(arrayBatch, i, task.isNullEqualsNull()), this.self());
-			}
-
-			workerIndex++;
-			if (workerIndex > colleagues.size()) workerIndex = 0;
-		}
-
-		this.log.info("Dispatched {} rows. (duplication factor of {})", anchorCount * table.length, anchorCount);
-	}
-
-	private void handle(FindDifferenceSetFromBatchSplitMessage message) {
-		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
-			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
-		}
-		columnCount = message.getRows()[0].values.length;
-		if (differenceSetDetector == null) createDifferenceSetDetector();
-
-		this.log.info("Received Row Batch Split {}/{} [id:{}] of size {}", splitCount + 1, message.getSplitCount(), message.getBatchId(), message.getRows().length);
-
-//		DictionaryEncoder encoder[] = new DictionaryEncoder[columnCount];
-		DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
-		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(message.getRows().length);
-		for (int rowIndex = 0; rowIndex < message.getRows().length; rowIndex++) {
-			Row row = message.getRows()[rowIndex];
-			for (int columnIndex = 0; columnIndex < row.values.length; columnIndex++) {
-				encoder[columnIndex].addValue(row.values[columnIndex]);
-			}
-		}
-		int[][] intRows = new int[message.getRows().length][columnCount];
-		for (int i = 0; i < columnCount; i++) {
-			IColumn column = encoder[i].getColumn();
-			for (int rowIndex = 0; rowIndex < column.size(); rowIndex++) {
-				intRows[rowIndex][i] = column.getValue(rowIndex);
-			}
-		}
-		this.log.info("Dictionary Encoded Everything");
-
-		for (int indexA = 0; indexA < message.getRows().length; indexA++) {
-			for (int indexB = indexA + 1; indexB < message.getRows().length; indexB++) {
-				Row rowA = message.getRows()[indexA];
-				Row rowB = message.getRows()[indexB];
-				if (rowA.anchor == rowB.anchor && rowA.anchor != message.getBatchId()) continue;
-
-//				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, message.isNullEqualsNull());
-				differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], message.isNullEqualsNull());
-			}
-		}
-
-		splitCount++;
-		if (splitCount < message.getSplitCount()) return;
-		splitCount = 0;
-
-		minimalDifferenceSets = differenceSetDetector.getMinimalDifferenceSets();
-		this.log.info("Calculated {} minimal difference sets | Batch[id:{}]", minimalDifferenceSets.length, message.getBatchId());
-
-//		broadcastAndSetState(WorkerState.READY_TO_MERGE);
-		this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
 	}
 
 	private void handle(FindDifferenceSetFromBatchMessage message) {
 		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
 			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
 		}
-		columnCount = message.getRows()[0].values.length;
+
+		batches = new Batches(message.getBatchCount());
+		tasks = message.getDifferenceSetTasks();
+		nullEqualsNull = message.isNullEqualsNull();
+
+		tryToFindDifferenceSets();
+	}
+
+	private void handle(SendDataBatchMessage message) {
+		batches.setBatch(message.getBatchIdentifier(), message.getBatch());
+		tryToFindDifferenceSets();
+	}
+
+	private void tryToFindDifferenceSets() {
+		if (tasks.size() == 0) {
+			broadcastAndSetState(WorkerState.DONE_MERGING);
+			return;
+		}
+
+		SingleDifferenceSetTask currentTask = tasks.get(0);
+		if (!batches.hasBatch(currentTask.getSetA())) {
+			dataBouncer.tell(new RequestDataBatchMessage(currentTask.getSetA()), this.self());
+			return;
+		}
+		if (!batches.hasBatch(currentTask.getSetB())) {
+			dataBouncer.tell(new RequestDataBatchMessage(currentTask.getSetB()), this.self());
+			return;
+		}
+
+		findDifferenceSets();
+	}
+
+	private void findDifferenceSets() {
+		if (tasks.size() == 0) {
+			broadcastAndSetState(WorkerState.DONE_MERGING);
+			return;
+		}
+
+		SingleDifferenceSetTask currentTask = tasks.get(0);
+		columnCount = batches.getBatch(currentTask.getSetA()).get(0).values.length;
 		if (differenceSetDetector == null) createDifferenceSetDetector();
 
-		this.log.info("Received Row Batch[id:{}] of size {}", message.getBatchId(), message.getRows().length);
-
-		DictionaryEncoder encoder[] = new DictionaryEncoder[columnCount];
-//		DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
-		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(message.getRows().length);
-		for (int rowIndex = 0; rowIndex < message.getRows().length; rowIndex++) {
-			Row row = message.getRows()[rowIndex];
-			for (int columnIndex = 0; columnIndex < row.values.length; columnIndex++) {
-				encoder[columnIndex].addValue(row.values[columnIndex]);
+		if (useDictionaryEncoding) {
+			int rowCount = batches.getBatch(currentTask.getSetA()).size() + (currentTask.getSetA() != currentTask.getSetB() ? batches.getBatch(currentTask.getSetB()).size() : 0);
+			Row[] rows = new Row[rowCount];
+			for (int i = 0; i < batches.getBatch(currentTask.getSetA()).size(); i++) {
+				rows[i] = batches.getBatch(currentTask.getSetA()).get(i);
 			}
-		}
-		int[][] intRows = new int[message.getRows().length][columnCount];
-		for (int i = 0; i < columnCount; i++) {
-			IColumn column = encoder[i].getColumn();
-			for (int rowIndex = 0; rowIndex < column.size(); rowIndex++) {
-				intRows[rowIndex][i] = column.getValue(rowIndex);
+			if (currentTask.getSetA() != currentTask.getSetB()) {
+				for (int i = 0; i < batches.getBatch(currentTask.getSetB()).size(); i++) {
+					rows[i + batches.getBatch(currentTask.getSetA()).size()] = batches.getBatch(currentTask.getSetB()).get(i);
+				}
 			}
-		}
-		this.log.info("Dictionary Encoded Everything");
 
-		for (int indexA = 0; indexA < message.getRows().length; indexA++) {
-			for (int indexB = indexA + 1; indexB < message.getRows().length; indexB++) {
-				Row rowA = message.getRows()[indexA];
-				Row rowB = message.getRows()[indexB];
-				if (rowA.anchor == rowB.anchor && rowA.anchor != message.getBatchId()) continue;
+			DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
+//			DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
+			for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(rows.length);
+			for (Row row : rows) {
+				for (int columnIndex = 0; columnIndex < row.values.length; columnIndex++) {
+					encoder[columnIndex].addValue(row.values[columnIndex]);
+				}
+			}
+			int[][] intRows = new int[rows.length][columnCount];
+			for (int i = 0; i < columnCount; i++) {
+				IColumn column = encoder[i].getColumn();
+				for (int rowIndex = 0; rowIndex < column.size(); rowIndex++) {
+					intRows[rowIndex][i] = column.getValue(rowIndex);
+				}
+			}
+			this.log.info("Dictionary Encoded Data");
 
-//				differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, message.isNullEqualsNull());
-				differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], message.isNullEqualsNull());
+			for (int indexA = 0; indexA < rows.length; indexA++) {
+				for (int indexB = indexA + 1; indexB < rows.length; indexB++) {
+					differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], nullEqualsNull);
+				}
+			}
+		} else {
+			List<Row> batchA = batches.getBatch(currentTask.getSetA());
+			List<Row> batchB = batches.getBatch(currentTask.getSetB());
+			for (Row rowA : batchA) {
+				for (Row rowB : batchB) {
+					differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, nullEqualsNull);
+				}
 			}
 		}
 
 		minimalDifferenceSets = differenceSetDetector.getMinimalDifferenceSets();
-		this.log.info("Calculated {} minimal difference sets | Batch[id:{}]", minimalDifferenceSets.length, message.getBatchId());
+		this.log.info("Calculated {} minimal difference sets | Batch[{}|{}]", minimalDifferenceSets.length, currentTask.getSetA(), currentTask.getSetB());
 
-//		broadcastAndSetState(WorkerState.READY_TO_MERGE);
-		this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
+		if (tasks.size() == 1) {
+			this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
+		} else {
+			tasks.remove(0);
+			this.self().tell(new FindDifferenceSetFromBatchMessage(tasks, batches.count(), nullEqualsNull), this.self());
+		}
 	}
 
 	private void handle(WorkerStateChangedMessage message) {
@@ -496,11 +414,12 @@ public class PeerWorker extends AbstractActor {
 		if (currentTreeNode.isRoot()) {
 			this.log.info("Finished UCC discovery!");
 
-			for (ActorRef actorRef : colleagues) {
-				actorRef.tell(new ReportAndShutdownMessage(), this.self());
-			}
-			this.self().tell(new ReportAndShutdownMessage(), this.self());
-			getContext().getSystem().terminate();
+			dataBouncer.tell(new ReportAndShutdownMessage(), this.self());
+//			for (ActorRef actorRef : colleagues) {
+//				actorRef.tell(new ReportAndShutdownMessage(), this.self());
+//			}
+//			this.self().tell(new ReportAndShutdownMessage(), this.self());
+//			getContext().getSystem().terminate();
 		} else {
 			fulfillCurrentTreeNode();
 		}
@@ -639,12 +558,6 @@ public class PeerWorker extends AbstractActor {
 
 	@Data
 	@AllArgsConstructor
-	private static class RegistrationMessage implements Serializable {
-		private static final long serialVersionUID = 4545299661052071337L;
-	}
-
-	@Data
-	@AllArgsConstructor
 	private static class WorkerStateChangedMessage implements Serializable {
 		private static final long serialVersionUID = 4037295208965201337L;
 		private WorkerState state;
@@ -727,11 +640,5 @@ public class PeerWorker extends AbstractActor {
 
 		private TreeNodeFulfilledMessage() {
 		}
-	}
-
-	@Data
-	@AllArgsConstructor
-	private class ReportAndShutdownMessage implements Serializable {
-		private static final long serialVersionUID = 1337457603749641337L;
 	}
 }

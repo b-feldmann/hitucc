@@ -52,6 +52,14 @@ public class DictionaryEncoder {
 		}
 	}
 
+	public List<String> getDictionary() {
+		if(dirty) {
+			encode();
+			dirty = false;
+		}
+		return dictionary;
+	}
+
 	public IColumn getColumn() {
 		if(dirty) {
 			encode();

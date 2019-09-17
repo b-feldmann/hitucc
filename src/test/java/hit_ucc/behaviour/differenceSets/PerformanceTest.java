@@ -18,10 +18,10 @@ public class PerformanceTest {
 	@BeforeClass(groups = {"performance"})
 	private void setupTable() {
 		try {
-//			table = ReadDataTable.readTable("bridges.csv", ',');
-			table = ReadDataTable.readTable("nursery.csv", ',');
-//			table = ReadDataTable.readTable("chess.csv", ',');
-//			table = ReadDataTable.readTable("ncvoter_Statewide.10000r.csv", ',', true);
+//			table = ReadDataTable.readTable("data/bridges.csv", ',');
+			table = ReadDataTable.readTable("data/nursery.csv", ',');
+//			table = ReadDataTable.readTable("data/chess.csv", ',');
+//			table = ReadDataTable.readTable("data/ncvoter_Statewide.10000r.csv", ',', true);
 
 			warmUpTable = new String[50][];
 			int columns = table[0].length;

@@ -38,10 +38,18 @@ lazy val hitucc = (project in file("."))
 TaskKey[Unit]("bridgesTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 8 -i bridges.csv --csvDelimiter ,").value
 TaskKey[Unit]("bridgesTaskManyWorker") := (run in Compile).toTask(" peer-host --workers 36 -ddf 8 -i bridges.csv --csvDelimiter ,").value
 TaskKey[Unit]("flightTask") := (run in Compile).toTask(" flight peer host system").value
-TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 5 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" peer-host --workers 1 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 169.254.94.1").value
 TaskKey[Unit]("chessTask") := (run in Compile).toTask(" peer-host --workers 6 -i chess.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("chessTaskSingle") := (run in Compile).toTask(" peer-host --workers 1 -i chess.csv --csvDelimiter , --csvSkipHeader").value
 
 enablePlugins(JavaAppPackaging)
+enablePlugins(DockerPlugin)
+
+// change the name of the project adding the prefix of the user
+packageName in Docker := "bf/" +  packageName.value
+//the base docker images
+dockerBaseImage := "java:8-jre"
+//exposed volumes
+dockerExposedVolumes := Seq("/opt/docker/logs", "/opt/docker/data", "/opt/docker/c/Users", "data")
