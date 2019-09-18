@@ -1,14 +1,19 @@
+import scala.sys.process._
+
 val akkaVersion = "2.5.24"
-val scala = "2.13.0"
+val author = "bfeldmann"
 
 enablePlugins(TestNGPlugin)
 
 // to be able to use exit(int) I fork the jvm and kill the fork and not the sbt-shell
 fork in run := true
 
+// set the main class for sbt - is not necessary if only using one class with a main method
+mainClass := Some("hit_ucc.HitUCCApp")
+
 maintainer := "Benjamin Feldmann <benjamin-feldmann@web.de>"
 
-lazy val hitucc = (project in file("."))
+lazy val app = (project in file("."))
   .settings(
     name := "HitUCC",
     libraryDependencies ++= Seq(
@@ -44,12 +49,35 @@ TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 -
 TaskKey[Unit]("chessTask") := (run in Compile).toTask(" peer-host --workers 6 -i chess.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("chessTaskSingle") := (run in Compile).toTask(" peer-host --workers 1 -i chess.csv --csvDelimiter , --csvSkipHeader").value
 
+lazy val afterDockerBuild = taskKey[Unit]("Push Docker to registry")
+afterDockerBuild := ({
+  val s: TaskStreams = streams.value
+  val shell: Seq[String] = if (sys.props("os.name").contains("Windows")) Seq("cmd", "/c") else Seq("bash", "-c")
+  val imageName = author + "/" + packageName.value + ":0.1.0-SNAPSHOT"
+  val registry = "registry.fsoc.hpi.uni-potsdam.de/" + author + "/" + packageName.value + ":1"
+  val dockerTag: Seq[String] = shell :+ "docker tag " + imageName + " " + registry
+  val dockerPush: Seq[String] = shell :+ "docker push " + registry
+  s.log.info("pushing docker image [" + imageName + "] to registry [" + registry + "]...")
+  if((dockerTag #&& dockerPush !) == 0) {
+    s.log.success("successfully pushed image to registry!")
+  } else {
+    throw new IllegalStateException("docker push to registry failed!")
+  }
+})
+
+// automatically execute 'afterDockerBuild' after docker:publishLocal
+publishLocal in Docker := Def.taskDyn {
+  val result = (publishLocal in Docker).value
+  Def.task {
+    val _ = afterDockerBuild.value
+    result
+  }
+}.value
+
 enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
 
 // change the name of the project adding the prefix of the user
-packageName in Docker := "bf/" +  packageName.value
+packageName in Docker := "bfeldmann/" +  packageName.value
 //the base docker images
 dockerBaseImage := "java:8-jre"
-//exposed volumes
-dockerExposedVolumes := Seq("/opt/docker/logs", "/opt/docker/data", "/opt/docker/c/Users", "data")

@@ -6,14 +6,14 @@ import akka.cluster.Cluster;
 import com.typesafe.config.Config;
 import hit_ucc.actors.PeerDataBouncer;
 import hit_ucc.actors.PeerWorker;
-import hit_ucc.actors.listeners.ClusterListener;
-import hit_ucc.actors.listeners.MetricsListener;
 import hit_ucc.actors.messages.TaskMessage;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class HitUCCPeerHostSystem extends HitUCCSystem {
 
@@ -53,31 +53,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 		});
 
 		Cluster.get(system).registerOnMemberRemoved(() -> {
-			try {
-				String[] paths = new String[]{System.getProperty("user.dir"), System.getProperty("user.dir").concat("/data"), System.getProperty("user.dir").concat("/c/Users"), System.getProperty("c/Users"), "c/Users"};
-
-				for (String path : paths) {
-					System.out.println("Path: " + path);
-					getResourceFiles(path).forEach(System.out::println);
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-
-			System.out.println("Member removed");
+			System.out.println("Member removed.");
 		});
-	}
-
-	private static List<String> getResourceFiles(String path) throws IOException {
-		List<String> filenames = new ArrayList<>();
-
-		File dir = new File(path);
-		if (!dir.exists()) return filenames;
-		if (dir.isFile()) {
-			filenames.add(dir.getName());
-			return filenames;
-		}
-
-		return filenames;
 	}
 }

@@ -105,8 +105,7 @@ public class PeerDataBouncer extends AbstractActor {
 
 		if (batchCount < 1) {
 			this.log.info("Connected to " + localWorker.size() + " worker.");
-			batchCount
-					= 0;
+			batchCount = 0;
 			int triangleCount = 0;
 			while (triangleCount < localWorker.size() + 1) {
 				batchCount++;
@@ -119,11 +118,6 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 		if (batchCount == 1) {
 			this.log.info("The Data Duplication Factor is set to 1. The program therefore cannot distribute the algorithm. This is not that bad, but it slows down the execution time significantly.");
-		}
-
-		int triangleCount = 0;
-		for (int i = 0; i < batchCount; i++) {
-			triangleCount += i + 1;
 		}
 
 		batches = new Batches(batchCount);

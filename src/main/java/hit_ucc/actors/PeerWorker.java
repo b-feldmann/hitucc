@@ -20,10 +20,7 @@ import hit_ucc.behaviour.differenceSets.DifferenceSetDetector;
 import hit_ucc.behaviour.differenceSets.HashAddDifferenceSetStrategy;
 import hit_ucc.behaviour.differenceSets.TwoSidedMergeMinimalSetsStrategy;
 import hit_ucc.behaviour.oracle.HittingSetOracle;
-import hit_ucc.model.Batches;
-import hit_ucc.model.Row;
-import hit_ucc.model.SingleDifferenceSetTask;
-import hit_ucc.model.TreeSearchNode;
+import hit_ucc.model.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -44,7 +41,6 @@ public class PeerWorker extends AbstractActor {
 	private ActorRef dataBouncer = null;
 	private List<WorkerState> colleaguesStates = new ArrayList<>();
 	private WorkerState selfState = WorkerState.NOT_STARTED;
-	private int splitCount = 0;
 	private int columnCount = 0;
 	private int maxLocalTreeDepth = 10;
 	private int currentLocalTreeDepth = 0;
@@ -225,11 +221,21 @@ public class PeerWorker extends AbstractActor {
 			}
 			this.log.info("Dictionary Encoded Data");
 
-			for (int indexA = 0; indexA < rows.length; indexA++) {
-				for (int indexB = indexA + 1; indexB < rows.length; indexB++) {
-					differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], nullEqualsNull);
+			if (currentTask.getSetA() == currentTask.getSetB()) {
+				for (int indexA = 0; indexA < rows.length; indexA++) {
+					for (int indexB = indexA + 1; indexB < rows.length; indexB++) {
+						differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], nullEqualsNull);
+					}
+				}
+			} else {
+				int firstBatchSize = batches.getBatch(currentTask.getSetA()).size();
+				for (int indexA = 0; indexA < firstBatchSize; indexA++) {
+					for (int indexB = firstBatchSize; indexB < rows.length; indexB++) {
+						differenceSetDetector.addDifferenceSet(intRows[indexA], intRows[indexB], nullEqualsNull);
+					}
 				}
 			}
+
 		} else {
 			if (currentTask.getSetA() == currentTask.getSetB()) {
 				List<Row> batch = batches.getBatch(currentTask.getSetA());
@@ -265,17 +271,17 @@ public class PeerWorker extends AbstractActor {
 
 		for (int i = 0; i < colleaguesStates.size(); i++) {
 			if (colleagues.get(i).equals(this.sender())) {
-				colleaguesStates.set(i, message.state);
+				colleaguesStates.set(i, message.getState());
 			}
 		}
 
 		if (this.self().equals(this.sender())) {
-			if (selfState != WorkerState.TREE_TRAVERSAL || message.state != WorkerState.READY_TO_MERGE) {
-				selfState = message.state;
+			if (selfState != WorkerState.TREE_TRAVERSAL || message.getState() != WorkerState.READY_TO_MERGE) {
+				selfState = message.getState();
 			}
 		}
 
-		if (selfState == WorkerState.READY_TO_MERGE && message.state == WorkerState.READY_TO_MERGE) {
+		if (selfState == WorkerState.READY_TO_MERGE && message.getState() == WorkerState.READY_TO_MERGE) {
 			tryToMerge();
 		}
 
@@ -309,7 +315,7 @@ public class PeerWorker extends AbstractActor {
 			}
 		}
 
-		if (selfState == WorkerState.DONE && message.state == WorkerState.DONE) {
+		if (selfState == WorkerState.DONE && message.getState() == WorkerState.DONE) {
 			boolean finished = true;
 			for (WorkerState colleaguesState : colleaguesStates) {
 				if (colleaguesState != WorkerState.DONE) {
@@ -560,18 +566,6 @@ public class PeerWorker extends AbstractActor {
 	private void broadcastState(WorkerState state) {
 		for (ActorRef worker : colleagues) {
 			worker.tell(new WorkerStateChangedMessage(state), this.self());
-		}
-	}
-
-	enum WorkerState {NOT_STARTED, DISCOVERING_DIFFERENCE_SETS, READY_TO_MERGE, WAITING_FOR_MERGE, ACCEPTED_MERGE, MERGING, DONE_MERGING, TREE_TRAVERSAL, DONE}
-
-	@Data
-	@AllArgsConstructor
-	private static class WorkerStateChangedMessage implements Serializable {
-		private static final long serialVersionUID = 4037295208965201337L;
-		private WorkerState state;
-
-		private WorkerStateChangedMessage() {
 		}
 	}
 
