@@ -16,9 +16,9 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 	public static final String PEER_ROLE = "peer";
 
-	public static void start(String actorSystemName, int workers, String host, int port, String hostHost, int hostPort) {
-		final Config config = createConfiguration(actorSystemName, PEER_ROLE, host, port, hostHost, hostPort);
-		final ActorSystem system = createSystem(actorSystemName, config);
+	public static void start(String clusterName, int workers, String host, int port, String hostHost, int hostPort) {
+		final Config config = createConfiguration(clusterName, PEER_ROLE, host, port, hostHost, hostPort);
+		final ActorSystem system = createSystem(clusterName, config);
 
 		Cluster.get(system).registerOnMemberUp(() -> {
 			for (int i = 0; i < workers; i++) {

@@ -43,10 +43,10 @@ lazy val app = (project in file("."))
 TaskKey[Unit]("bridgesTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 8 -i bridges.csv --csvDelimiter ,").value
 TaskKey[Unit]("bridgesTaskManyWorker") := (run in Compile).toTask(" peer-host --workers 36 -ddf 8 -i bridges.csv --csvDelimiter ,").value
 TaskKey[Unit]("flightTask") := (run in Compile).toTask(" flight peer host system").value
-TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" peer-host --workers 4 --minWorkers 8 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" peer-host --workers 1 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
-TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 169.254.94.1").value
-TaskKey[Unit]("chessTask") := (run in Compile).toTask(" peer-host --workers 6 -i chess.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 127.17.0.7 --masterport 1600").value
+TaskKey[Unit]("chessTask") := (run in Compile).toTask(" peer-host --workers 6 -i cheass.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("chessTaskSingle") := (run in Compile).toTask(" peer-host --workers 1 -i chess.csv --csvDelimiter , --csvSkipHeader").value
 
 lazy val afterDockerBuild = taskKey[Unit]("Push Docker to registry")
@@ -66,18 +66,23 @@ afterDockerBuild := ({
 })
 
 // automatically execute 'afterDockerBuild' after docker:publishLocal
-publishLocal in Docker := Def.taskDyn {
-  val result = (publishLocal in Docker).value
-  Def.task {
-    val _ = afterDockerBuild.value
-    result
-  }
-}.value
+//publishLocal in Docker := Def.taskDyn {
+//  val result = (publishLocal in Docker).value
+//  Def.task {
+//    val _ = afterDockerBuild.value
+//    result
+//  }
+//}.value
 
 enablePlugins(JavaAppPackaging)
 enablePlugins(DockerPlugin)
 
 // change the name of the project adding the prefix of the user
-packageName in Docker := "bfeldmann/" +  packageName.value
+packageName in Docker := author +  packageName.value
+
+version in Docker := "latest"
+
+dockerExposedPorts := Seq(1600)
+
 //the base docker images
 dockerBaseImage := "java:8-jre"

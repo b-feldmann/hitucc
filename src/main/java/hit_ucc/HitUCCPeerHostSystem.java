@@ -8,20 +8,15 @@ import hit_ucc.actors.PeerDataBouncer;
 import hit_ucc.actors.PeerWorker;
 import hit_ucc.actors.messages.TaskMessage;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 	public static final String PEER_HOST_ROLE = "peer-host";
 
-	public static void start(String actorSystemName, int workers, String input, char csvDelimiter, boolean csvSkipHeader, String output, int dataDuplicationFactor, boolean nullEqualsNull, String host, int port) {
-		final Config config = createConfiguration(actorSystemName, PEER_HOST_ROLE, host, port, host, port);
-		final ActorSystem system = createSystem(actorSystemName, config);
+	public static void start(String clusterName, int workers, int minWorkers, String input, char csvDelimiter, boolean csvSkipHeader, String output, int dataDuplicationFactor, boolean nullEqualsNull, String host, int port) {
+		final Config config = createConfiguration(clusterName, PEER_HOST_ROLE, host, port, host, port);
+		final ActorSystem system = createSystem(clusterName, config);
 
 		final ActorRef[] dataBouncer = new ActorRef[1];
 
@@ -29,11 +24,11 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 //			system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 //			system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
-			dataBouncer[0] = system.actorOf(PeerDataBouncer.props(), PeerDataBouncer.DEFAULT_NAME);
-
 			for (int i = 0; i < workers; i++) {
 				system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i);
 			}
+
+			dataBouncer[0] = system.actorOf(PeerDataBouncer.props(), PeerDataBouncer.DEFAULT_NAME);
 
 			String[][] table = null;
 			try {
@@ -49,7 +44,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 				e.printStackTrace();
 			}
 
-			dataBouncer[0].tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull), ActorRef.noSender());
+			dataBouncer[0].tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull, minWorkers < workers ? workers : minWorkers), ActorRef.noSender());
 		});
 
 		Cluster.get(system).registerOnMemberRemoved(() -> {

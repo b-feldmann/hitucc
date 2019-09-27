@@ -1,38 +1,45 @@
 package hit_ucc;
 
-import java.util.concurrent.TimeUnit;
-
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigFactory;
-
 import akka.actor.ActorSystem;
 import akka.cluster.Cluster;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 
+import java.util.concurrent.TimeUnit;
+
 public class HitUCCSystem {
 
-	protected static Config createConfiguration(String actorSystemName, String actorSystemRole, String host, int port, String masterhost, int masterport) {
-		
+	protected static Config createConfiguration(String clusterName, String actorSystemRole, String host, int port, String masterhost, int masterport) {
+		if (host.equals(masterhost)) {
+			return ConfigFactory.parseString(
+					"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
+							"akka.remote.netty.tcp.port = " + port + "\n" +
+							"akka.cluster.roles = [" + actorSystemRole + "]\n" +
+							"akka.cluster.seed-nodes = [\"akka.tcp://" + clusterName + "@" + masterhost + ":" + masterport + "\"]")
+					.withFallback(ConfigFactory.load("hitucc"));
+		}
+
 		// Create the Config with fallback to the application config
 		return ConfigFactory.parseString(
 				"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
-				"akka.remote.netty.tcp.port = " + port + "\n" + 
-				"akka.remote.artery.canonical.hostname = \"" + host + "\"\n" +
-				"akka.remote.artery.canonical.port = " + port + "\n" +
-				"akka.cluster.roles = [" + actorSystemRole + "]\n" +
-				"akka.cluster.seed-nodes = [\"akka://" + actorSystemName + "@" + masterhost + ":" + masterport + "\"]")
-			.withFallback(ConfigFactory.load("application"));
+						"akka.remote.netty.tcp.bind-hostname = \"0.0.0.0\"\n" +
+						"akka.remote.netty.tcp.port = " + port + "\n" +
+						"akka.remote.netty.tcp.bind-port = " + port + "\n" +
+						"akka.cluster.roles = [" + actorSystemRole + "]\n" +
+						"akka.cluster.seed-nodes = [\"akka.tcp://" + clusterName + "@" + masterhost + ":" + masterport + "\"]")
+				.withFallback(ConfigFactory.load("hitucc"));
 	}
-	
+
 	protected static ActorSystem createSystem(String actorSystemName, Config config) {
-		
+
 		// Create the ActorSystem
 		final ActorSystem system = ActorSystem.create(actorSystemName, config);
-		
+
 		// Register a callback that ends the program when the ActorSystem terminates
 		system.registerOnTermination(() -> System.exit(0));
-		
+
 		// Register a callback that terminates the ActorSystem when it is detached from the cluster
 		Cluster.get(system).registerOnMemberRemoved(() -> {
 			system.terminate();
@@ -45,7 +52,7 @@ public class HitUCCSystem {
 				}
 			}).start();
 		});
-		
+
 		return system;
 	}
 }

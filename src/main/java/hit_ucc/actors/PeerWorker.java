@@ -113,7 +113,7 @@ public class PeerWorker extends AbstractActor {
 
 	private void register(Member member) {
 		if (isValidMember(member)) {
-			this.log.info(member.address().toString());
+			this.log.info("Register {}", member.address().toString());
 			this.getContext()
 					.actorSelection(member.address() + "/user/*")
 					.tell(new RegistrationMessage(), this.self());

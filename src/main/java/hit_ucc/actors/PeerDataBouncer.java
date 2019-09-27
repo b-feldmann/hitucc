@@ -32,6 +32,9 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private Batches batches;
 
+	private TaskMessage task;
+	private int minWorker;
+
 	public static Props props() {
 		return Props.create(PeerDataBouncer.class);
 	}
@@ -64,7 +67,7 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void register(Member member) {
 		if (isValidMember(member)) {
-			this.log.info(member.address().toString());
+			this.log.info("Register {}", member.address().toString());
 			this.getContext()
 					.actorSelection(member.address() + "/user/*")
 					.tell(new RegistrationMessage(), this.self());
@@ -95,9 +98,21 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 
 		this.sender().tell(new RegistrationMessage(), this.self());
+
+		if(task != null && localWorker.size() <= minWorker) {
+			handle(task);
+		}
 	}
 
 	private void handle(TaskMessage task) {
+		this.task = task;
+		this.minWorker = task.getMinWorker();
+
+		if(localWorker.size() < minWorker) {
+			this.log.info("{} worker missing before the algorithm can be started", minWorker - localWorker.size());
+			return;
+		}
+
 		this.log.info("Received Task Message with table of size [row: {}, columns: {}]", task.getInputFile().length, task.getInputFile()[0].length);
 
 		String[][] table = task.getInputFile();

@@ -14,6 +14,7 @@ public class TaskMessage implements Serializable {
 	private int attributes;
 	private int dataDuplicationFactor;
 	private boolean nullEqualsNull;
+	private int minWorker;
 
 	private TaskMessage() {
 	}
