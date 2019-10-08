@@ -1,23 +1,29 @@
 package hit_ucc.behaviour.differenceSets;
 
-import java.util.BitSet;
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.HashSet;
 
 public class HashAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	HashSet<BitSet> differenceSets;
+	HashSet<SerializableBitSet> differenceSets;
 
 	public HashAddDifferenceSetStrategy() {
 		this.differenceSets = new HashSet<>();
 	}
 
 	@Override
-	public BitSet addDifferenceSet(BitSet differenceSet) {
+	public SerializableBitSet addDifferenceSet(SerializableBitSet differenceSet) {
 		differenceSets.add(differenceSet);
 		return differenceSet;
 	}
 
 	@Override
-	public Iterable<BitSet> getIterable() {
+	public int getCachedDifferenceSetCount() {
+		return differenceSets.size();
+	}
+
+	@Override
+	public Iterable<SerializableBitSet> getIterable() {
 		return differenceSets;
 	}
 

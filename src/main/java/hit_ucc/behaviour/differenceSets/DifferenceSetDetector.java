@@ -1,6 +1,7 @@
 package hit_ucc.behaviour.differenceSets;
 
-import java.util.BitSet;
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.List;
 
 public class DifferenceSetDetector {
@@ -9,13 +10,15 @@ public class DifferenceSetDetector {
 	public static final int SECOND_MINIMAL = 2;
 	public static final int EQUAL_SETS = 3;
 
+	private static final int MAX_CACHED_DIFFERENCE_SETS = 700000;
+
 	private IAddDifferenceSetStrategy addStrategy;
 	private ICalculateMinimalSetsStrategy calculateMinimalStrategy;
 	private IMergeMinimalSetsStrategy mergeSetsStrategy;
 
 	private boolean dirty = false;
 
-	private BitSet[] minimalDifferenceSets = new BitSet[0];
+	private SerializableBitSet[] minimalDifferenceSets = new SerializableBitSet[0];
 
 	public DifferenceSetDetector(IAddDifferenceSetStrategy addStrategy, ICalculateMinimalSetsStrategy calculateMinimalStrategy, IMergeMinimalSetsStrategy mergeSetsStrategy) {
 		this.addStrategy = addStrategy;
@@ -23,11 +26,11 @@ public class DifferenceSetDetector {
 		this.mergeSetsStrategy = mergeSetsStrategy;
 	}
 
-	public static String bitSetToString(BitSet bitSet) {
-		return bitSetToString(bitSet, bitSet.length());
+	public static String bitSetToString(SerializableBitSet bitSet) {
+		return bitSetToString(bitSet, bitSet.logicalLength());
 	}
 
-	public static String bitSetToString(BitSet bitSet, int length) {
+	public static String bitSetToString(SerializableBitSet bitSet, int length) {
 		if (length == 0) return "";
 
 		String output = "";
@@ -38,7 +41,7 @@ public class DifferenceSetDetector {
 		return output;
 	}
 
-	protected static int testMinimalHittingSet(BitSet setA, BitSet setB) {
+	protected static int testMinimalHittingSet(SerializableBitSet setA, SerializableBitSet setB) {
 		if (setA.cardinality() == 0 || setB.cardinality() == 0) {
 			if (setA.cardinality() == setB.cardinality()) return EQUAL_SETS;
 
@@ -50,7 +53,7 @@ public class DifferenceSetDetector {
 		// 2 - setB minimal candidate
 		int minimalCandidate = EQUAL_SETS;
 
-		int maxLength = Math.max(setA.length(), setB.length());
+		int maxLength = Math.max(setA.logicalLength(), setB.logicalLength());
 		for (int i = 0; i < maxLength; i++) {
 			boolean valueA = setA.get(i);
 			boolean valueB = setB.get(i);
@@ -75,30 +78,30 @@ public class DifferenceSetDetector {
 	 * @return return true if the @subset is a superset of @superset
 	 * returns also true if both sets are equal
 	 */
-	protected static boolean isSubset(BitSet subset, BitSet superset) {
-		for (int i = 0; i < subset.length(); i++) {
+	protected static boolean isSubset(SerializableBitSet subset, SerializableBitSet superset) {
+		for (int i = 0; i < subset.logicalLength(); i++) {
 			if (subset.get(i) && !superset.get(i)) return false;
 		}
 
 		return true;
 	}
 
-	protected static void insertMinimalDifferenceSets(List<BitSet> minimalBitSets, BitSet potentialMinimal) {
-		for (BitSet set : minimalBitSets) {
+	protected static void insertMinimalDifferenceSets(List<SerializableBitSet> minimalBitSets, SerializableBitSet potentialMinimal) {
+		for (SerializableBitSet set : minimalBitSets) {
 			if (isSubset(set, potentialMinimal)) return;
 		}
 
 		minimalBitSets.add(potentialMinimal);
 	}
 
-	public BitSet addDifferenceSet(String[] rowA, String[] rowB) {
+	public SerializableBitSet addDifferenceSet(String[] rowA, String[] rowB) {
 		return addDifferenceSet(rowA, rowB, false);
 	}
 
-	public BitSet addDifferenceSet(String[] rowA, String[] rowB, boolean nullEqualsNull) {
+	public SerializableBitSet addDifferenceSet(String[] rowA, String[] rowB, boolean nullEqualsNull) {
 		dirty = true;
 
-		BitSet bitSet = new BitSet(rowA.length);
+		SerializableBitSet bitSet = new SerializableBitSet(rowA.length);
 
 		for (int i = 0; i < rowA.length; i++) {
 			if (rowA[i] == null) {
@@ -108,17 +111,19 @@ public class DifferenceSetDetector {
 			}
 		}
 
+		checkCachedDifferenceSetsBounds();
+
 		return addStrategy.addDifferenceSet(bitSet);
 	}
 
-	public BitSet addDifferenceSet(int[] rowA, int[] rowB, boolean nullEqualsNull) {
+	public SerializableBitSet addDifferenceSet(int[] rowA, int[] rowB, boolean nullEqualsNull) {
 		return addDifferenceSet(rowA, rowB);
 	}
 
-	public BitSet addDifferenceSet(int[] rowA, int[] rowB) {
+	public SerializableBitSet addDifferenceSet(int[] rowA, int[] rowB) {
 		dirty = true;
 
-		BitSet bitSet = new BitSet(rowA.length);
+		SerializableBitSet bitSet = new SerializableBitSet(rowA.length);
 
 		for (int i = 0; i < rowA.length; i++) {
 			if (rowA[i] != rowB[i]) {
@@ -126,13 +131,29 @@ public class DifferenceSetDetector {
 			}
 		}
 
+		checkCachedDifferenceSetsBounds();
+
 		return addStrategy.addDifferenceSet(bitSet);
+	}
+
+	private void checkCachedDifferenceSetsBounds() {
+		if (getCachedDifferenceSetCount() >= MAX_CACHED_DIFFERENCE_SETS) {
+			getMinimalDifferenceSets();
+		}
+	}
+
+	public int getCachedDifferenceSetCount() {
+		return addStrategy.getCachedDifferenceSetCount();
+	}
+
+	public int getLastCountedMinimalDifferenceSetCount() {
+		return minimalDifferenceSets == null ? 0 : minimalDifferenceSets.length;
 	}
 
 	/**
 	 * Return all minimal difference Sets
 	 */
-	public BitSet[] getMinimalDifferenceSets() {
+	public SerializableBitSet[] getMinimalDifferenceSets() {
 		if (dirty) {
 			dirty = false;
 			if (minimalDifferenceSets.length == 0) {
@@ -152,7 +173,11 @@ public class DifferenceSetDetector {
 		return minimalDifferenceSets;
 	}
 
-	public BitSet[] mergeMinimalDifferenceSets(BitSet[] otherMinimalSets) {
+	public SerializableBitSet[] mergeMinimalDifferenceSets(SerializableBitSet[] a, SerializableBitSet[] b) {
+		return minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(a, b);
+	}
+
+	public SerializableBitSet[] mergeMinimalDifferenceSets(SerializableBitSet[] otherMinimalSets) {
 		return minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(getMinimalDifferenceSets(), otherMinimalSets);
 	}
 

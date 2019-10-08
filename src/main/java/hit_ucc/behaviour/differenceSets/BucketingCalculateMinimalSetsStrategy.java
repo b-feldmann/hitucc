@@ -1,5 +1,7 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.*;
 
 import static hit_ucc.behaviour.differenceSets.DifferenceSetDetector.insertMinimalDifferenceSets;
@@ -12,25 +14,25 @@ public class BucketingCalculateMinimalSetsStrategy implements ICalculateMinimalS
 	}
 
 	@Override
-	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets) {
-		ArrayList<BitSet> foundMinimalSets = new ArrayList<>();
+	public SerializableBitSet[] calculateMinimalDifferenceSets(Iterable<SerializableBitSet> uniqueSets) {
+		ArrayList<SerializableBitSet> foundMinimalSets = new ArrayList<>();
 
-		ArrayList<BitSet>[] bucketList = new ArrayList[numberOfColumns + 1];
+		ArrayList<SerializableBitSet>[] bucketList = new ArrayList[numberOfColumns + 1];
 		for (int i = 0; i < bucketList.length; i++) {
 			bucketList[i] = new ArrayList<>();
 		}
 
-		for (BitSet set : uniqueSets) {
+		for (SerializableBitSet set : uniqueSets) {
 			bucketList[set.cardinality()].add(set);
 		}
 
-		for (ArrayList<BitSet> list : bucketList) {
-			for (BitSet set : list) {
+		for (ArrayList<SerializableBitSet> list : bucketList) {
+			for (SerializableBitSet set : list) {
 				insertMinimalDifferenceSets(foundMinimalSets, set);
 			}
 		}
 
-		BitSet[] result = new BitSet[foundMinimalSets.size()];
+		SerializableBitSet[] result = new SerializableBitSet[foundMinimalSets.size()];
 		return foundMinimalSets.toArray(result);
 	}
 }

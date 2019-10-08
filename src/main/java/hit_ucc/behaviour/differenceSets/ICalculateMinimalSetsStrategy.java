@@ -1,7 +1,7 @@
 package hit_ucc.behaviour.differenceSets;
 
-import java.util.BitSet;
+import hit_ucc.model.SerializableBitSet;
 
 public interface ICalculateMinimalSetsStrategy {
-	BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets);
+	SerializableBitSet[] calculateMinimalDifferenceSets(Iterable<SerializableBitSet> uniqueSets);
 }

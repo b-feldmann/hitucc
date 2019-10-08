@@ -1,23 +1,25 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.*;
 
 public class OneSidedMergeMinimalSetsStrategy implements IMergeMinimalSetsStrategy {
 	@Override
-	public BitSet[] mergeMinimalDifferenceSets(BitSet[] setsA, BitSet[] setsB) {
-		List<BitSet> sortedSets = new ArrayList<>();
-		List<BitSet> minimalSets = new ArrayList<>();
+	public SerializableBitSet[] mergeMinimalDifferenceSets(SerializableBitSet[] setsA, SerializableBitSet[] setsB) {
+		List<SerializableBitSet> sortedSets = new ArrayList<>();
+		List<SerializableBitSet> minimalSets = new ArrayList<>();
 
-		for (BitSet set : setsA) {
+		for (SerializableBitSet set : setsA) {
 			DifferenceSetDetector.insertMinimalDifferenceSets(sortedSets, set);
 		}
-		for (BitSet set : setsB) {
+		for (SerializableBitSet set : setsB) {
 			DifferenceSetDetector.insertMinimalDifferenceSets(sortedSets, set);
 		}
-		sortedSets.sort(Comparator.comparingInt(BitSet::cardinality));
+		sortedSets.sort(Comparator.comparingInt(SerializableBitSet::cardinality));
 
-		for(BitSet set : sortedSets) DifferenceSetDetector.insertMinimalDifferenceSets(minimalSets, set);
+		for(SerializableBitSet set : sortedSets) DifferenceSetDetector.insertMinimalDifferenceSets(minimalSets, set);
 
-		return minimalSets.toArray(new BitSet[minimalSets.size()]);
+		return minimalSets.toArray(new SerializableBitSet[minimalSets.size()]);
 	}
 }

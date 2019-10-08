@@ -1,13 +1,12 @@
 package hit_ucc.model;
 
 import java.util.ArrayDeque;
-import java.util.BitSet;
 import java.util.Iterator;
 import java.util.Queue;
 
 // inspired from https://algs4.cs.princeton.edu/code/edu/princeton/cs/algs4/TrieSET.java.html
 
-public class TrieSet implements Iterable<BitSet> {
+public class TrieSet implements Iterable<SerializableBitSet> {
 	private int R;
 
 	private Node root;      // root of trie
@@ -28,16 +27,16 @@ public class TrieSet implements Iterable<BitSet> {
 	 * {@code false} otherwise
 	 * @throws IllegalArgumentException if {@code key} is {@code null}
 	 */
-	public boolean contains(BitSet key) {
+	public boolean contains(SerializableBitSet key) {
 		if (key == null) throw new IllegalArgumentException("argument to contains() is null");
 		Node x = get(root, key, 0);
 		if (x == null) return false;
 		return x.isBitSet;
 	}
 
-	private Node get(Node x, BitSet key, int d) {
+	private Node get(Node x, SerializableBitSet key, int d) {
 		if (x == null) return null;
-		if (d == key.length()) return x;
+		if (d == key.logicalLength()) return x;
 		int c = key.nextSetBit(d);
 		return get(x.next[c - d], key, c + 1);
 	}
@@ -48,14 +47,14 @@ public class TrieSet implements Iterable<BitSet> {
 	 * @param key the key to add
 	 * @throws IllegalArgumentException if {@code key} is {@code null}
 	 */
-	public void add(BitSet key) {
+	public void add(SerializableBitSet key) {
 		if (key == null) throw new IllegalArgumentException("argument to add() is null");
 		root = add(root, key, 0);
 	}
 
-	private Node add(Node x, BitSet key, int d) {
+	private Node add(Node x, SerializableBitSet key, int d) {
 		if (x == null) x = new Node(R - d);
-		if (d == key.length()) {
+		if (d == key.logicalLength()) {
 			if (!x.isBitSet) n++;
 			x.isBitSet = true;
 		} else {
@@ -94,8 +93,8 @@ public class TrieSet implements Iterable<BitSet> {
 	 *
 	 * @return an iterator to all of the keys in the set
 	 */
-	public Iterator<BitSet> iterator() {
-		return keysWithPrefix(new BitSet()).iterator();
+	public Iterator<SerializableBitSet> iterator() {
+		return keysWithPrefix(new SerializableBitSet(R)).iterator();
 	}
 
 	/**
@@ -105,16 +104,16 @@ public class TrieSet implements Iterable<BitSet> {
 	 * @return all of the keys in the set that start with {@code prefix},
 	 * as an iterable
 	 */
-	public Iterable<BitSet> keysWithPrefix(BitSet prefix) {
-		Queue<BitSet> results = new ArrayDeque<>();
+	public Iterable<SerializableBitSet> keysWithPrefix(SerializableBitSet prefix) {
+		Queue<SerializableBitSet> results = new ArrayDeque<>();
 		Node x = get(root, prefix, 0);
 		collect(x, prefix, results, 0);
 		return results;
 	}
 
-	private void collect(Node x, BitSet prefix, Queue<BitSet> results, int d) {
+	private void collect(Node x, SerializableBitSet prefix, Queue<SerializableBitSet> results, int d) {
 		if (x == null) return;
-		if (x.isBitSet) results.add(BitSet.valueOf(prefix.toByteArray()));
+		if (x.isBitSet) results.add(SerializableBitSet.fromBinary(prefix.toBinary()));
 		for (int c = d; c < R; c++) {
 			prefix.set(c);
 			collect(x.next[c - d], prefix, results, c + 1);
@@ -131,19 +130,19 @@ public class TrieSet implements Iterable<BitSet> {
 	 * @return all of the keys in the set that match {@code pattern},
 	 * as an iterable, where . is treated as a wildcard character.
 	 */
-	public Iterable<BitSet> keysThatMatch(BitSet pattern) {
-		Queue<BitSet> results = new ArrayDeque<BitSet>();
-		BitSet prefix = new BitSet();
+	public Iterable<SerializableBitSet> keysThatMatch(SerializableBitSet pattern) {
+		Queue<SerializableBitSet> results = new ArrayDeque<SerializableBitSet>();
+		SerializableBitSet prefix = new SerializableBitSet(R);
 		collect(root, prefix, pattern, results);
 		return results;
 	}
 
-	private void collect(Node x, BitSet prefix, BitSet pattern, Queue<BitSet> results) {
+	private void collect(Node x, SerializableBitSet prefix, SerializableBitSet pattern, Queue<SerializableBitSet> results) {
 		if (x == null) return;
-		int d = prefix.length();
-		if (d == pattern.length() && x.isBitSet)
+		int d = prefix.logicalLength();
+		if (d == pattern.logicalLength() && x.isBitSet)
 			results.add(prefix);
-		if (d == pattern.length())
+		if (d == pattern.logicalLength())
 			return;
 		int c = pattern.nextSetBit(d);
 //		if (c == '.') {
@@ -155,7 +154,7 @@ public class TrieSet implements Iterable<BitSet> {
 //		} else {
 		prefix.set(c);
 		collect(x.next[c - d], prefix, pattern, results);
-		prefix.clear(prefix.length() - 1);
+		prefix.clear(prefix.logicalLength() - 1);
 //		}
 	}
 
@@ -168,14 +167,14 @@ public class TrieSet implements Iterable<BitSet> {
 	 * or {@code null} if no such string
 	 * @throws IllegalArgumentException if {@code query} is {@code null}
 	 */
-	public BitSet longestPrefixOf(BitSet query) {
+	public SerializableBitSet longestPrefixOf(SerializableBitSet query) {
 		if (query == null) throw new IllegalArgumentException("argument to longestPrefixOf() is null");
 		int length = longestPrefixOf(root, query, 0, -1);
 		if (length == -1) return null;
 
 
 //		return query.substring(0, length);
-		for (int i = length; i < query.length(); i++) {
+		for (int i = length; i < query.logicalLength(); i++) {
 			query.clear(i);
 		}
 		return query;
@@ -185,10 +184,10 @@ public class TrieSet implements Iterable<BitSet> {
 	// rooted at x that is a prefix of the query string,
 	// assuming the first d character match and we have already
 	// found a prefix match of length length
-	private int longestPrefixOf(Node x, BitSet query, int d, int length) {
+	private int longestPrefixOf(Node x, SerializableBitSet query, int d, int length) {
 		if (x == null) return length;
 		if (x.isBitSet) length = d;
-		if (d == query.length()) return length;
+		if (d == query.logicalLength()) return length;
 		int c = query.nextSetBit(d);
 		return longestPrefixOf(x.next[c - d], query, c + 1, length);
 	}
@@ -199,14 +198,14 @@ public class TrieSet implements Iterable<BitSet> {
 	 * @param key the key
 	 * @throws IllegalArgumentException if {@code key} is {@code null}
 	 */
-	public void delete(BitSet key) {
+	public void delete(SerializableBitSet key) {
 		if (key == null) throw new IllegalArgumentException("argument to delete() is null");
 		root = delete(root, key, 0);
 	}
 
-	private Node delete(Node x, BitSet key, int d) {
+	private Node delete(Node x, SerializableBitSet key, int d) {
 		if (x == null) return null;
-		if (d == key.length()) {
+		if (d == key.logicalLength()) {
 			if (x.isBitSet) n--;
 			x.isBitSet = false;
 		} else {

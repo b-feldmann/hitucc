@@ -1,6 +1,5 @@
 package hit_ucc.actors.messages;
 
-import hit_ucc.model.SingleDifferenceSetTask;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -13,7 +12,8 @@ import java.util.List;
 public class FindDifferenceSetFromBatchMessage implements Serializable {
 	private static final long serialVersionUID = 3493143613678891337L;
 	private FindDifferenceSetFromBatchMessage() {}
-	private List<SingleDifferenceSetTask> differenceSetTasks;
+	private List<Integer> differenceSetTasksA;
+	private List<Integer> differenceSetTasksB;
 	private int batchCount;
 	private boolean nullEqualsNull;
 }

@@ -1,11 +1,13 @@
 package hit_ucc.behaviour.differenceSets;
 
-import java.util.BitSet;
+import hit_ucc.model.SerializableBitSet;
 
 public interface IAddDifferenceSetStrategy {
-	BitSet addDifferenceSet(BitSet differenceSet);
+	SerializableBitSet addDifferenceSet(SerializableBitSet differenceSet);
 
-	Iterable<BitSet> getIterable();
+	int getCachedDifferenceSetCount();
+
+	Iterable<SerializableBitSet> getIterable();
 
 	void clearState();
 }

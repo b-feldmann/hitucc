@@ -20,7 +20,6 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 import java.util.Random;
 
@@ -37,17 +36,17 @@ public class TreeSearchPeerWorker extends AbstractActor {
 	private int columnCount = 0;
 	private int maxLocalTreeDepth = 10;
 	private int currentLocalTreeDepth = 0;
-	private BitSet[] minimalDifferenceSets = new BitSet[0];
-	private List<BitSet> discoveredUCCs = new ArrayList<>();
+	private SerializableBitSet[] minimalDifferenceSets = new SerializableBitSet[0];
+	private List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
 	private List<TreeSearchNode> treeSearchNodes = new ArrayList<>();
 	private TreeSearchNode currentTreeNode;
 	private long currentTreeNodeId = 0;
 
-	public TreeSearchPeerWorker(BitSet[] minimalDifferenceSets) {
+	public TreeSearchPeerWorker(SerializableBitSet[] minimalDifferenceSets) {
 		this.minimalDifferenceSets = minimalDifferenceSets;
 	}
 
-	public static Props props(BitSet[] minimalDifferenceSets) {
+	public static Props props(SerializableBitSet[] minimalDifferenceSets) {
 		return Props.create(TreeSearchPeerWorker.class, (new TreeSearchPeerWorker(minimalDifferenceSets)));
 	}
 
@@ -210,15 +209,15 @@ public class TreeSearchPeerWorker extends AbstractActor {
 		currentLocalTreeDepth = 1;
 		addNewTreeSearchNode(message.nodeId);
 
-		BitSet x = message.getX();
-		BitSet y = message.getY();
+		SerializableBitSet x = message.getX();
+		SerializableBitSet y = message.getY();
 		int length = message.getLength();
-		BitSet[] differenceSets = message.getDifferenceSets();
+		SerializableBitSet[] differenceSets = message.getDifferenceSets();
 
 		handleLocal(x, y, length, differenceSets);
 	}
 
-	private void handleLocal(BitSet x, BitSet y, int length, BitSet[] differenceSets) {
+	private void handleLocal(SerializableBitSet x, SerializableBitSet y, int length, SerializableBitSet[] differenceSets) {
 		currentLocalTreeDepth += 1;
 
 		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, columnCount);
@@ -241,8 +240,8 @@ public class TreeSearchPeerWorker extends AbstractActor {
 		}
 	}
 
-	private void report(BitSet ucc) {
-//		this.log.info("SET {}", DifferenceSetDetector.bitSetToString(ucc, columnCount));
+	private void report(SerializableBitSet ucc) {
+//		this.log.info("SET {}", DifferenceSetDetector.SerializableBitSetToString(ucc, columnCount));
 //		this.log.info("UCC: {}", toUCC(ucc));
 
 		discoveredUCCs.add(ucc);
@@ -251,15 +250,15 @@ public class TreeSearchPeerWorker extends AbstractActor {
 		}
 	}
 
-	private void split(BitSet x, BitSet y, int next, BitSet[] differenceSets) {
+	private void split(SerializableBitSet x, SerializableBitSet y, int next, SerializableBitSet[] differenceSets) {
 		if (next < columnCount) {
-			BitSet xNew = copyBitSet(x, next);
+			SerializableBitSet xNew = copySerializableBitSet(x, next);
 			xNew.set(next);
 			ActorRef randomRef = getRandomColleague();
 			addChildToTreeSearchNode();
 			randomRef.tell(new TreeNodeWorkMessage(xNew, y, next + 1, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 
-			BitSet yNew = copyBitSet(y, next);
+			SerializableBitSet yNew = copySerializableBitSet(y, next);
 			yNew.set(next);
 			if (currentLocalTreeDepth >= maxLocalTreeDepth) {
 				randomRef = getRandomColleague();
@@ -289,7 +288,7 @@ public class TreeSearchPeerWorker extends AbstractActor {
 			this.log.info("Tree Search Cost: {}", System.currentTimeMillis() - treeSearchStart);
 		}
 
-		for (BitSet ucc : discoveredUCCs) {
+		for (SerializableBitSet ucc : discoveredUCCs) {
 //			this.log.info("UCC: {}", toUCC(ucc));
 		}
 		this.log.info("Discovered {} UCCs", discoveredUCCs.size());
@@ -297,26 +296,26 @@ public class TreeSearchPeerWorker extends AbstractActor {
 		this.getContext().stop(this.self());
 	}
 
-	private BitSet copyBitSet(BitSet set, int newLength) {
-		BitSet copy = new BitSet(newLength);
-		for (int i = 0; i < set.length(); i++) {
+	private SerializableBitSet copySerializableBitSet(SerializableBitSet set, int newLength) {
+		SerializableBitSet copy = new SerializableBitSet(newLength);
+		for (int i = 0; i < set.logicalLength(); i++) {
 			if (set.get(i)) copy.set(i);
 		}
 
 		return copy;
 	}
 
-	private String toUCC(BitSet bitSet) {
-		if (bitSet.length() == 0) return "";
+	private String toUCC(SerializableBitSet SerializableBitSet) {
+		if (SerializableBitSet.logicalLength() == 0) return "";
 
 		String output = "";
-		for (int i = 0; i < bitSet.length() - 1; i++) {
-			if (bitSet.get(i)) {
+		for (int i = 0; i < SerializableBitSet.logicalLength() - 1; i++) {
+			if (SerializableBitSet.get(i)) {
 				output += i + ", ";
 			}
 		}
-		if (bitSet.get(bitSet.length() - 1)) {
-			output += (bitSet.length() - 1) + ", ";
+		if (SerializableBitSet.get(SerializableBitSet.logicalLength() - 1)) {
+			output += (SerializableBitSet.logicalLength() - 1) + ", ";
 		}
 		return output;
 	}
@@ -336,7 +335,7 @@ public class TreeSearchPeerWorker extends AbstractActor {
 	@AllArgsConstructor
 	private static class UCCDiscoveredMessage implements Serializable {
 		private static final long serialVersionUID = 997981649989901337L;
-		private BitSet ucc;
+		private SerializableBitSet ucc;
 
 		private UCCDiscoveredMessage() {
 		}
@@ -346,10 +345,10 @@ public class TreeSearchPeerWorker extends AbstractActor {
 	@AllArgsConstructor
 	private class TreeNodeWorkMessage implements Serializable {
 		private static final long serialVersionUID = 2360129506196901337L;
-		private BitSet x;
-		private BitSet y;
+		private SerializableBitSet x;
+		private SerializableBitSet y;
 		private int length;
-		private BitSet[] differenceSets;
+		private SerializableBitSet[] differenceSets;
 		private int numAttributes;
 
 		private long nodeId;

@@ -1,11 +1,11 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 
 import static hit_ucc.behaviour.differenceSets.DifferenceSetDetectorTest.createBitSet;
@@ -13,9 +13,9 @@ import static hit_ucc.behaviour.differenceSets.DifferenceSetDetectorTest.createB
 public class TrieAddDifferenceSetStrategyTest {
 	private IAddDifferenceSetStrategy addStrategy;
 
-	private List<BitSet> iterableToArray(Iterable<BitSet> iterable) {
-		List<BitSet> list = new ArrayList<>();
-		for (BitSet set : iterable) list.add(set);
+	private List<SerializableBitSet> iterableToArray(Iterable<SerializableBitSet> iterable) {
+		List<SerializableBitSet> list = new ArrayList<>();
+		for (SerializableBitSet set : iterable) list.add(set);
 		return list;
 	}
 
@@ -26,13 +26,13 @@ public class TrieAddDifferenceSetStrategyTest {
 
 	@Test
 	public void testAddDifferenceSet() {
-		BitSet[] testSets = new BitSet[]{
+		SerializableBitSet[] testSets = new SerializableBitSet[]{
 				createBitSet(0, 1, 1, 0, 1),
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		for (BitSet set : testSets) addStrategy.addDifferenceSet(set);
+		for (SerializableBitSet set : testSets) addStrategy.addDifferenceSet(set);
 
 		// added 3 sets
 		Assert.assertEquals(iterableToArray(addStrategy.getIterable()).size(), 3);
@@ -46,11 +46,11 @@ public class TrieAddDifferenceSetStrategyTest {
 
 	@Test(dependsOnMethods = {"testAddDifferenceSet"})
 	private void testIterator() {
-		BitSet a = createBitSet(0, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 1, 0, 1, 0);
-		BitSet c = createBitSet(1, 1, 1, 1, 0);
-		BitSet d = createBitSet(1, 0, 1, 1, 0);
-		BitSet e = createBitSet(0, 1, 0, 1, 1);
+		SerializableBitSet a = createBitSet(0, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet c = createBitSet(1, 1, 1, 1, 0);
+		SerializableBitSet d = createBitSet(1, 0, 1, 1, 0);
+		SerializableBitSet e = createBitSet(0, 1, 0, 1, 1);
 
 		addStrategy.addDifferenceSet(a);
 		addStrategy.addDifferenceSet(b);
@@ -58,7 +58,7 @@ public class TrieAddDifferenceSetStrategyTest {
 		addStrategy.addDifferenceSet(d);
 		addStrategy.addDifferenceSet(e);
 
-		List<BitSet> expectedList = new ArrayList<>();
+		List<SerializableBitSet> expectedList = new ArrayList<>();
 		expectedList.add(a);
 		expectedList.add(b);
 		expectedList.add(c);

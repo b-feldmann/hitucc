@@ -1,7 +1,7 @@
 package hit_ucc.behaviour.differenceSets;
 
-import java.util.BitSet;
+import hit_ucc.model.SerializableBitSet;
 
 public interface IMergeMinimalSetsStrategy {
-	BitSet[] mergeMinimalDifferenceSets(BitSet[] setsA, BitSet[] setsB);
+	SerializableBitSet[] mergeMinimalDifferenceSets(SerializableBitSet[] setsA, SerializableBitSet[] setsB);
 }

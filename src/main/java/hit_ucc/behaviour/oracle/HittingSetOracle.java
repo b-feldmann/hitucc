@@ -1,19 +1,20 @@
 package hit_ucc.behaviour.oracle;
 
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.BitSet;
 import java.util.List;
 
 public class HittingSetOracle {
-	private static boolean isHittingSet(BitSet h, BitSet[] differenceSets) {
-		for (BitSet e : differenceSets) {
+	private static boolean isHittingSet(SerializableBitSet h, SerializableBitSet[] differenceSets) {
+		for (SerializableBitSet e : differenceSets) {
 			if (!e.intersects(h)) return false;
 		}
 		return true;
 	}
 
-	public static Status extendable(BitSet x, BitSet y, int length, BitSet[] differenceSets, int numAttributes) {
+	public static Status extendable(SerializableBitSet x, SerializableBitSet y, int length, SerializableBitSet[] differenceSets, int numAttributes) {
 		// 2
 		if (x.cardinality() == 0) {
 			// 3
@@ -26,9 +27,9 @@ public class HittingSetOracle {
 		}
 
 		// 5
-		List<BitSet> t = new ArrayList<>();
+		List<SerializableBitSet> t = new ArrayList<>();
 		// 6
-		List<BitSet>[] s = new List[x.cardinality()];
+		List<SerializableBitSet>[] s = new List[x.cardinality()];
 		int[] xIndexToSIndex = new int[numAttributes];
 		Arrays.fill(xIndexToSIndex, -1);
 		int sIndex = -1;
@@ -38,8 +39,8 @@ public class HittingSetOracle {
 			xIndexToSIndex[xIndex] = sIndex;
 		}
 		// 7
-		for (BitSet e : differenceSets) {
-			BitSet intersection = intersect(e, x);
+		for (SerializableBitSet e : differenceSets) {
+			SerializableBitSet intersection = intersect(e, x);
 			// 9
 			if (intersection.cardinality() == 0) {
 				t.add(difference(e, y));
@@ -55,7 +56,7 @@ public class HittingSetOracle {
 		}
 
 		// 10
-		for (List<BitSet> sx : s) {
+		for (List<SerializableBitSet> sx : s) {
 			if (sx == null || sx.isEmpty()) return Status.NOT_EXTENDABLE;
 		}
 
@@ -66,7 +67,7 @@ public class HittingSetOracle {
 		int[] iterationPosition = new int[x.cardinality()];
 		while (true) {
 			// 13
-			BitSet w = new BitSet(numAttributes);
+			SerializableBitSet w = new SerializableBitSet(numAttributes);
 			boolean increaseNext = true;
 			for (int i = 0; i < s.length; ++i) {
 
@@ -81,7 +82,7 @@ public class HittingSetOracle {
 			}
 			// 14
 			boolean allNoSubset = true;
-			for (BitSet e : t) {
+			for (SerializableBitSet e : t) {
 				if (isSubsetOf(e, w)) {
 					allNoSubset = false;
 					break;
@@ -95,42 +96,38 @@ public class HittingSetOracle {
 		return Status.NOT_EXTENDABLE;
 	}
 
-	private static boolean isSubsetOf(BitSet included, BitSet in) {
+	private static boolean isSubsetOf(SerializableBitSet included, SerializableBitSet in) {
 		return included.cardinality() == intersect(included, in).cardinality();
 	}
 
-	private static BitSet or(BitSet lhs, BitSet rhs) {
-		BitSet intersection = copy(lhs);
+	private static SerializableBitSet or(SerializableBitSet lhs, SerializableBitSet rhs) {
+		SerializableBitSet intersection = copy(lhs);
 		intersection.or(rhs);
 		return intersection;
 	}
 
-	private static BitSet intersect(BitSet lhs, BitSet rhs) {
-		BitSet intersection = copy(lhs);
+	private static SerializableBitSet intersect(SerializableBitSet lhs, SerializableBitSet rhs) {
+		SerializableBitSet intersection = copy(lhs);
 		intersection.and(rhs);
 		return intersection;
 	}
 
-	private static BitSet difference(BitSet lhs, BitSet rhs) {
-		BitSet difference = copy(lhs);
+	private static SerializableBitSet difference(SerializableBitSet lhs, SerializableBitSet rhs) {
+		SerializableBitSet difference = copy(lhs);
 		difference.andNot(rhs);
 		return difference;
 	}
 
-	private static BitSet flippedCopy(BitSet set, int numAttributes) {
-		BitSet copy = new BitSet(set.length());
+	private static SerializableBitSet flippedCopy(SerializableBitSet set, int numAttributes) {
+		SerializableBitSet copy = set.clone();
 		for (int i = 0; i < numAttributes; i++) {
-			if (!set.get(i)) copy.set(i);
+			copy.flip(i);
 		}
 		return copy;
 	}
 
-	private static BitSet copy(BitSet set) {
-		BitSet copy = new BitSet(set.length());
-		for (int i = 0; i < set.length(); i++) {
-			if (set.get(i)) copy.set(i);
-		}
-		return copy;
+	private static SerializableBitSet copy(SerializableBitSet set) {
+		return set.clone();
 	}
 
 	public enum Status {MINIMAL, EXTENDABLE, NOT_EXTENDABLE, FAILED}

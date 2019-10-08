@@ -10,7 +10,7 @@ import java.net.UnknownHostException;
 
 public class HitUCCApp {
 
-	public static final String CLUSTER_NAME = "hit-ucc";
+	public static final String CLUSTER_NAME = "HitUccSystem";
 
 	public static void main(String[] args) {
 
@@ -30,10 +30,10 @@ public class HitUCCApp {
 
 			switch (jCommander.getParsedCommand()) {
 				case HitUCCPeerHostSystem.PEER_HOST_ROLE:
-					HitUCCPeerHostSystem.start(CLUSTER_NAME, peerHostCommand.workers, peerHostCommand.minWorkers, peerHostCommand.input, peerHostCommand.csvDelimiter.charAt(0), peerHostCommand.csvSkipHeader, peerHostCommand.output, peerHostCommand.dataDuplicationFactor, peerHostCommand.nullEqualsNull, peerHostCommand.host, peerHostCommand.port);
+					HitUCCPeerHostSystem.start(CLUSTER_NAME, peerHostCommand.workers, peerHostCommand.minWorkers, peerHostCommand.input, peerHostCommand.csvDelimiter.charAt(0), peerHostCommand.csvSkipHeader, peerHostCommand.output, peerHostCommand.dataDuplicationFactor, peerHostCommand.nullEqualsNull, peerHostCommand.host, peerHostCommand.port, peerHostCommand.bindHost, peerHostCommand.bindPort);
 					break;
 				case HitUCCPeerSystem.PEER_ROLE:
-					HitUCCPeerSystem.start(CLUSTER_NAME, peerCommand.workers, peerCommand.host, peerCommand.port, peerCommand.masterhost, peerCommand.masterport);
+					HitUCCPeerSystem.start(CLUSTER_NAME, peerCommand.workers, peerCommand.host, peerCommand.port, peerCommand.masterhost, peerCommand.masterport, peerCommand.bindHost, peerCommand.bindPort);
 					break;
 				default:
 					throw new AssertionError();
@@ -56,7 +56,7 @@ public class HitUCCApp {
 		public static final int DEFAULT_PEER_PORT = 7877;
 		public static final int DEFAULT_WORKERS = 4;
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
-		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
+		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = true;
 		public static final boolean DEFAULT_CSV_SKIP_HEADER = true;
 
 		@Parameter(names = {"-h", "--host"}, description = "this machine's host name or IP to bind against")
@@ -66,11 +66,16 @@ public class HitUCCApp {
 		@Parameter(names = {"-w", "--workers"}, description = "number of workers to start locally", required = false)
 		int workers = DEFAULT_WORKERS;
 
+		@Parameter(names = {"-bh", "--bind-host"}, description = "this machine's host name or IP to bind against")
+		String bindHost = "0.0.0.0";
+		@Parameter(names = {"-bp", "--bind-port"}, description = "port to bind against", required = false)
+		int bindPort = -1;
+
 		String getDefaultHost() {
 			try {
 				return InetAddress.getLocalHost().getHostAddress();
 			} catch (UnknownHostException e) {
-				return "localhost";
+				return "127.0.0.1";
 			}
 		}
 

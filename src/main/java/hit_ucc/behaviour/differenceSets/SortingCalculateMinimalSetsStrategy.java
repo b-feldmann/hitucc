@@ -1,23 +1,25 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.*;
 
 public class SortingCalculateMinimalSetsStrategy implements ICalculateMinimalSetsStrategy {
 	@Override
-	public BitSet[] calculateMinimalDifferenceSets(Iterable<BitSet> uniqueSets) {
-		List<BitSet> foundMinimalSets = new ArrayList<>();
+	public SerializableBitSet[] calculateMinimalDifferenceSets(Iterable<SerializableBitSet> uniqueSets) {
+		List<SerializableBitSet> foundMinimalSets = new ArrayList<>();
 
-		List<BitSet> sortedList = new ArrayList<>();
-		for (BitSet i : uniqueSets) {
+		List<SerializableBitSet> sortedList = new ArrayList<>();
+		for (SerializableBitSet i : uniqueSets) {
 			sortedList.add(i);
 		}
-		sortedList.sort(Comparator.comparingInt(BitSet::cardinality));
+		sortedList.sort(Comparator.comparingInt(SerializableBitSet::cardinality));
 
-		for (BitSet set : sortedList) {
+		for (SerializableBitSet set : sortedList) {
 			DifferenceSetDetector.insertMinimalDifferenceSets(foundMinimalSets, set);
 		}
 
-		BitSet[] result = new BitSet[foundMinimalSets.size()];
+		SerializableBitSet[] result = new SerializableBitSet[foundMinimalSets.size()];
 		return foundMinimalSets.toArray(result);
 	}
 }

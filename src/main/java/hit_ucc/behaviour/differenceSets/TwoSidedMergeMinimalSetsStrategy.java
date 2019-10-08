@@ -1,13 +1,14 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 
 public class TwoSidedMergeMinimalSetsStrategy implements IMergeMinimalSetsStrategy {
 	@Override
-	public BitSet[] mergeMinimalDifferenceSets(BitSet[] setsA, BitSet[] setsB) {
-		List<BitSet> minimalSets = new ArrayList<>();
+	public SerializableBitSet[] mergeMinimalDifferenceSets(SerializableBitSet[] setsA, SerializableBitSet[] setsB) {
+		List<SerializableBitSet> minimalSets = new ArrayList<>();
 
 		for(int a = 0, b = 0; a < setsA.length || b < setsB.length;){
 			if(a == setsA.length) {
@@ -25,7 +26,7 @@ public class TwoSidedMergeMinimalSetsStrategy implements IMergeMinimalSetsStrate
 			}
 		}
 
-		BitSet[] result = new BitSet[minimalSets.size()];
+		SerializableBitSet[] result = new SerializableBitSet[minimalSets.size()];
 		return minimalSets.toArray(result);
 	}
 }

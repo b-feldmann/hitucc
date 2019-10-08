@@ -1,7 +1,7 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
 import org.apache.commons.collections4.trie.PatriciaTrie;
-import java.util.BitSet;
 
 public class JavaTrieAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
 	PatriciaTrie differenceSets;
@@ -11,13 +11,18 @@ public class JavaTrieAddDifferenceSetStrategy implements IAddDifferenceSetStrate
 	}
 
 	@Override
-	public BitSet addDifferenceSet(BitSet differenceSet) {
+	public SerializableBitSet addDifferenceSet(SerializableBitSet differenceSet) {
 		differenceSets.put(differenceSet.toString(), differenceSet);
 		return differenceSet;
 	}
 
 	@Override
-	public Iterable<BitSet> getIterable() {
+	public int getCachedDifferenceSetCount() {
+		return differenceSets.size();
+	}
+
+	@Override
+	public Iterable<SerializableBitSet> getIterable() {
 		return differenceSets.values();
 	}
 

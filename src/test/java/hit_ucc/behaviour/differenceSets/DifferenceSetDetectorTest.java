@@ -1,11 +1,11 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
 import org.testng.Assert;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 
 public class DifferenceSetDetectorTest {
@@ -22,8 +22,8 @@ public class DifferenceSetDetectorTest {
 		);
 	}
 
-	protected static BitSet createBitSet(int... bits) {
-		BitSet set = new BitSet();
+	protected static SerializableBitSet createBitSet(int... bits) {
+		SerializableBitSet set = new SerializableBitSet(bits.length);
 		for (int i = 0; i < bits.length; i++) if (bits[i] == 1) set.set(i);
 		return set;
 	}
@@ -55,7 +55,7 @@ public class DifferenceSetDetectorTest {
 
 	@Test(dependsOnMethods = {"testSetDirty"})
 	public void testGetMinimalDifferenceSets() {
-		BitSet[] testSetsA = new BitSet[]{
+		SerializableBitSet[] testSetsA = new SerializableBitSet[]{
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(0, 1, 1, 1, 0),
 				createBitSet(1, 0, 0, 0, 0),
@@ -63,48 +63,48 @@ public class DifferenceSetDetectorTest {
 				createBitSet(1, 1, 0, 0, 0),
 		};
 
-		for (BitSet set : testSetsA) {
+		for (SerializableBitSet set : testSetsA) {
 			addDifferenceSetStrategy.addDifferenceSet(set);
 		}
 		differenceSetDetector.setDirty();
 
-		BitSet[] expectedMinimalSets = new BitSet[]{
+		SerializableBitSet[] expectedMinimalSets = new SerializableBitSet[]{
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		BitSet[] actualSets = differenceSetDetector.getMinimalDifferenceSets();
+		SerializableBitSet[] actualSets = differenceSetDetector.getMinimalDifferenceSets();
 		Assert.assertEquals(actualSets.length, expectedMinimalSets.length);
 		Assert.assertEqualsNoOrder(actualSets, expectedMinimalSets);
 	}
 
 	@Test(dependsOnMethods = {"testSetDirty"})
 	public void testMergeMinimalDifferenceSets() {
-		BitSet[] testSetsA = new BitSet[]{
+		SerializableBitSet[] testSetsA = new SerializableBitSet[]{
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(0, 0, 1, 1, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		for (BitSet set : testSetsA) {
+		for (SerializableBitSet set : testSetsA) {
 			addDifferenceSetStrategy.addDifferenceSet(set);
 		}
 		differenceSetDetector.setDirty();
 
-		BitSet[] testSetsB = new BitSet[]{
+		SerializableBitSet[] testSetsB = new SerializableBitSet[]{
 				createBitSet(0, 0, 0, 0, 1),
 				createBitSet(0, 1, 1, 1, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		BitSet[] expectedMergedSets = new BitSet[]{
+		SerializableBitSet[] expectedMergedSets = new SerializableBitSet[]{
 				createBitSet(0, 0, 0, 0, 1),
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(0, 0, 1, 1, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		BitSet[] actualMergedSets = differenceSetDetector.mergeMinimalDifferenceSets(testSetsB);
+		SerializableBitSet[] actualMergedSets = differenceSetDetector.mergeMinimalDifferenceSets(testSetsB);
 		Assert.assertEquals(actualMergedSets.length, expectedMergedSets.length);
 		Assert.assertEqualsNoOrder(actualMergedSets, expectedMergedSets);
 	}
@@ -112,20 +112,20 @@ public class DifferenceSetDetectorTest {
 	@Test
 	public void testTestMinimalHittingSet() {
 		// Arrange
-		BitSet setA = createBitSet(1, 1, 0, 1, 1);
-		BitSet setB = createBitSet(1, 1, 1, 1, 1);
-		BitSet setC = createBitSet(1, 0, 0, 0, 0);
-		BitSet setD = createBitSet(0, 0, 0, 1, 0);
-		BitSet setE = createBitSet(0, 1, 0, 1, 1);
+		SerializableBitSet setA = createBitSet(1, 1, 0, 1, 1);
+		SerializableBitSet setB = createBitSet(1, 1, 1, 1, 1);
+		SerializableBitSet setC = createBitSet(1, 0, 0, 0, 0);
+		SerializableBitSet setD = createBitSet(0, 0, 0, 1, 0);
+		SerializableBitSet setE = createBitSet(0, 1, 0, 1, 1);
 
-		BitSet setF1 = createBitSet(0, 1, 0, 1, 1);
-		BitSet setF2 = createBitSet(0, 1, 0, 1, 1);
+		SerializableBitSet setF1 = createBitSet(0, 1, 0, 1, 1);
+		SerializableBitSet setF2 = createBitSet(0, 1, 0, 1, 1);
 
-		BitSet setG1 = createBitSet(0, 0, 0, 0, 0);
-		BitSet setG2 = createBitSet(0, 0, 0, 0, 0);
+		SerializableBitSet setG1 = createBitSet(0, 0, 0, 0, 0);
+		SerializableBitSet setG2 = createBitSet(0, 0, 0, 0, 0);
 
-		BitSet setH1 = createBitSet(0, 0, 0, 0, 0);
-		BitSet setH2 = createBitSet(0, 1, 0, 1, 1);
+		SerializableBitSet setH1 = createBitSet(0, 0, 0, 0, 0);
+		SerializableBitSet setH2 = createBitSet(0, 1, 0, 1, 1);
 
 
 		// Act
@@ -166,13 +166,13 @@ public class DifferenceSetDetectorTest {
 
 	@Test
 	private void testClearState() {
-		BitSet[] testSets = new BitSet[]{
+		SerializableBitSet[] testSets = new SerializableBitSet[]{
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(0, 0, 1, 1, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		for (BitSet set : testSets) {
+		for (SerializableBitSet set : testSets) {
 			addDifferenceSetStrategy.addDifferenceSet(set);
 		}
 
@@ -183,18 +183,18 @@ public class DifferenceSetDetectorTest {
 
 	@Test
 	private void testSetDirty() {
-		BitSet[] testSets = new BitSet[]{
+		SerializableBitSet[] testSets = new SerializableBitSet[]{
 				createBitSet(0, 1, 0, 0, 0),
 				createBitSet(0, 0, 1, 1, 0),
 				createBitSet(1, 0, 0, 0, 0)
 		};
 
-		for (BitSet set : testSets) {
+		for (SerializableBitSet set : testSets) {
 			addDifferenceSetStrategy.addDifferenceSet(set);
 		}
 
 		Assert.assertEquals(differenceSetDetector.getMinimalDifferenceSets().length, 0);
-		Assert.assertEqualsNoOrder(differenceSetDetector.getMinimalDifferenceSets(), new BitSet[0]);
+		Assert.assertEqualsNoOrder(differenceSetDetector.getMinimalDifferenceSets(), new SerializableBitSet[0]);
 
 		differenceSetDetector.setDirty();
 
@@ -204,10 +204,10 @@ public class DifferenceSetDetectorTest {
 
 	@Test
 	private void testIsSubset() {
-		BitSet setA = createBitSet(0, 1, 0, 1);
-		BitSet setB = createBitSet(0, 1, 1, 1);
-		BitSet setC = createBitSet(0, 0, 1, 1);
-		BitSet setD = createBitSet(0, 0, 0, 1);
+		SerializableBitSet setA = createBitSet(0, 1, 0, 1);
+		SerializableBitSet setB = createBitSet(0, 1, 1, 1);
+		SerializableBitSet setC = createBitSet(0, 0, 1, 1);
+		SerializableBitSet setD = createBitSet(0, 0, 0, 1);
 
 		Assert.assertTrue(DifferenceSetDetector.isSubset(setA, setB));
 		Assert.assertFalse(DifferenceSetDetector.isSubset(setB, setA));
@@ -232,24 +232,24 @@ public class DifferenceSetDetectorTest {
 
 	@Test(dependsOnMethods = {"testIsSubset"})
 	private void testInsertMinimalDifferenceSets() {
-		List<BitSet> bitSets = new ArrayList<>();
+		List<SerializableBitSet> bitSets = new ArrayList<>();
 
-		BitSet setA = createBitSet(0, 1, 0, 0);
-		BitSet setB = createBitSet(0, 0, 1, 0);
-		BitSet setC = createBitSet(0, 0, 1, 1);
-		BitSet setD = createBitSet(0, 1, 0, 1);
-		BitSet setE = createBitSet(0, 0, 1, 1);
-		BitSet setF = createBitSet(0, 1, 1, 1);
-		BitSet setG = createBitSet(1, 0, 0, 1);
+		SerializableBitSet setA = createBitSet(0, 1, 0, 0);
+		SerializableBitSet setB = createBitSet(0, 0, 1, 0);
+		SerializableBitSet setC = createBitSet(0, 0, 1, 1);
+		SerializableBitSet setD = createBitSet(0, 1, 0, 1);
+		SerializableBitSet setE = createBitSet(0, 0, 1, 1);
+		SerializableBitSet setF = createBitSet(0, 1, 1, 1);
+		SerializableBitSet setG = createBitSet(1, 0, 0, 1);
 
-		List<BitSet> listA = new ArrayList<>();
+		List<SerializableBitSet> listA = new ArrayList<>();
 		listA.add(setA);
 
-		List<BitSet> listBF = new ArrayList<>();
+		List<SerializableBitSet> listBF = new ArrayList<>();
 		listBF.add(setA);
 		listBF.add(setB);
 
-		List<BitSet> listG = new ArrayList<>();
+		List<SerializableBitSet> listG = new ArrayList<>();
 		listG.add(setA);
 		listG.add(setB);
 		listG.add(setG);

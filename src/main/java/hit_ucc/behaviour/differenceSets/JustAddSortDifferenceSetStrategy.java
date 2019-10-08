@@ -1,13 +1,14 @@
 package hit_ucc.behaviour.differenceSets;
 
+import hit_ucc.model.SerializableBitSet;
+
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Comparator;
 import java.util.List;
 
 public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	private List<BitSet> differenceSets;
-	private List<BitSet> uniqueSortedDifferenceSets;
+	private List<SerializableBitSet> differenceSets;
+	private List<SerializableBitSet> uniqueSortedDifferenceSets;
 	private final int MAX_LENGTH = 1000001;
 
 	public JustAddSortDifferenceSetStrategy() {
@@ -16,7 +17,7 @@ public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrate
 	}
 
 	@Override
-	public BitSet addDifferenceSet(BitSet differenceSet) {
+	public SerializableBitSet addDifferenceSet(SerializableBitSet differenceSet) {
 		differenceSets.add(differenceSet);
 
 		if (differenceSets.size() >= MAX_LENGTH) {
@@ -26,14 +27,19 @@ public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrate
 		return differenceSet;
 	}
 
+	@Override
+	public int getCachedDifferenceSetCount() {
+		return differenceSets.size();
+	}
+
 	private void mergeAll() {
-		differenceSets.sort(Comparator.comparingInt(BitSet::cardinality));
+		differenceSets.sort(Comparator.comparingInt(SerializableBitSet::cardinality));
 		uniqueSortedDifferenceSets = merge(uniqueSortedDifferenceSets, differenceSets);
 		differenceSets.clear();
 	}
 
-	private List<BitSet> merge(List<BitSet> setsA, List<BitSet> setsB) {
-		List<BitSet> merged = new ArrayList<>();
+	private List<SerializableBitSet> merge(List<SerializableBitSet> setsA, List<SerializableBitSet> setsB) {
+		List<SerializableBitSet> merged = new ArrayList<>();
 
 		int startA = 0;
 		int startB = 0;
@@ -73,7 +79,7 @@ public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrate
 	}
 
 	@Override
-	public Iterable<BitSet> getIterable() {
+	public Iterable<SerializableBitSet> getIterable() {
 		if (differenceSets.size() > 0) {
 			mergeAll();
 		}

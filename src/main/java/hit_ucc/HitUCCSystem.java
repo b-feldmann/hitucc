@@ -11,22 +11,30 @@ import java.util.concurrent.TimeUnit;
 
 public class HitUCCSystem {
 
-	protected static Config createConfiguration(String clusterName, String actorSystemRole, String host, int port, String masterhost, int masterport) {
-		if (host.equals(masterhost)) {
+	protected static Config createConfiguration(String clusterName, String actorSystemRole, String host, int port, String masterhost, int masterport, String bindHost, int bindPort) {
+		if(host.equals(masterhost)) {
+			System.out.println("Start on host " + host + ":" + port + " (bind to " + bindHost + ":" + bindPort + ")");
+		} else {
+			System.out.println("Start on host " + host + ":" + port + " (bind to " + bindHost + ":" + bindPort + ") | master is " + masterhost + ":" + masterport);
+		}
+
+		if (bindPort == -1) {
 			return ConfigFactory.parseString(
-					"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
-							"akka.remote.netty.tcp.port = " + port + "\n" +
-							"akka.cluster.roles = [" + actorSystemRole + "]\n" +
-							"akka.cluster.seed-nodes = [\"akka.tcp://" + clusterName + "@" + masterhost + ":" + masterport + "\"]")
-					.withFallback(ConfigFactory.load("hitucc"));
+				"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
+						"akka.remote.netty.tcp.bind-hostname = \"" + bindHost + "\"\n" +
+						"akka.remote.netty.tcp.port = " + port + "\n" +
+						"akka.remote.netty.tcp.bind-port = \"\"\n" +
+						"akka.cluster.roles = [" + actorSystemRole + "]\n" +
+						"akka.cluster.seed-nodes = [\"akka.tcp://" + clusterName + "@" + masterhost + ":" + masterport + "\"]")
+				.withFallback(ConfigFactory.load("hitucc"));
 		}
 
 		// Create the Config with fallback to the application config
 		return ConfigFactory.parseString(
 				"akka.remote.netty.tcp.hostname = \"" + host + "\"\n" +
-						"akka.remote.netty.tcp.bind-hostname = \"0.0.0.0\"\n" +
+						"akka.remote.netty.tcp.bind-hostname = \"" + bindHost + "\"\n" +
 						"akka.remote.netty.tcp.port = " + port + "\n" +
-						"akka.remote.netty.tcp.bind-port = " + port + "\n" +
+						"akka.remote.netty.tcp.bind-port = " + bindPort + "\n" +
 						"akka.cluster.roles = [" + actorSystemRole + "]\n" +
 						"akka.cluster.seed-nodes = [\"akka.tcp://" + clusterName + "@" + masterhost + ":" + masterport + "\"]")
 				.withFallback(ConfigFactory.load("hitucc"));
@@ -36,6 +44,8 @@ public class HitUCCSystem {
 
 		// Create the ActorSystem
 		final ActorSystem system = ActorSystem.create(actorSystemName, config);
+
+		System.out.println("Created System with name: " + system.name());
 
 		// Register a callback that ends the program when the ActorSystem terminates
 		system.registerOnTermination(() -> System.exit(0));

@@ -14,8 +14,8 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 	public static final String PEER_HOST_ROLE = "peer-host";
 
-	public static void start(String clusterName, int workers, int minWorkers, String input, char csvDelimiter, boolean csvSkipHeader, String output, int dataDuplicationFactor, boolean nullEqualsNull, String host, int port) {
-		final Config config = createConfiguration(clusterName, PEER_HOST_ROLE, host, port, host, port);
+	public static void start(String clusterName, int workers, int minWorkers, String input, char csvDelimiter, boolean csvSkipHeader, String output, int dataDuplicationFactor, boolean nullEqualsNull, String host, int port, String bindHost, int bindPort) {
+		final Config config = createConfiguration(clusterName, PEER_HOST_ROLE, host, port, host, port, bindHost, bindPort);
 		final ActorSystem system = createSystem(clusterName, config);
 
 		final ActorRef[] dataBouncer = new ActorRef[1];
@@ -25,10 +25,10 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 //			system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
 			for (int i = 0; i < workers; i++) {
-				system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i);
+				system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
 			}
 
-			dataBouncer[0] = system.actorOf(PeerDataBouncer.props(), PeerDataBouncer.DEFAULT_NAME);
+			dataBouncer[0] = system.actorOf(PeerDataBouncer.props(), PeerDataBouncer.DEFAULT_NAME + ":" + port);
 
 			String[][] table = null;
 			try {

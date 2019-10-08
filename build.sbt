@@ -22,7 +22,7 @@ lazy val app = (project in file("."))
       "ch.qos.logback" % "logback-core" % "1.2.3",
       // -- Akka --
       "com.typesafe.akka" %% "akka-actor" % akkaVersion,
-      "com.typesafe.akka" %% "akka-remote" % akkaVersion,
+      "com.typesafe.akka" %% "akka-cluster" % akkaVersion,
       "com.typesafe.akka" %% "akka-cluster-tools" % akkaVersion,
       "com.typesafe.akka" %% "akka-cluster-metrics" % akkaVersion,
       "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "test",
@@ -36,6 +36,7 @@ lazy val app = (project in file("."))
       "org.projectlombok" % "lombok" % "1.18.2",
       "org.apache.commons" % "commons-collections4" % "4.0",
       "com.opencsv" % "opencsv" % "3.3",
+      "org.roaringbitmap" % "RoaringBitmap" % "0.8.9"
     ),
   )
 
@@ -48,12 +49,13 @@ TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" peer-host 
 TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 127.17.0.7 --masterport 1600").value
 TaskKey[Unit]("chessTask") := (run in Compile).toTask(" peer-host --workers 6 -i cheass.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("chessTaskSingle") := (run in Compile).toTask(" peer-host --workers 1 -i chess.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("censusTask") := (run in Compile).toTask(" peer-host --workers 8 -i CENSUS.csv --csvDelimiter ; --csvSkipHeader").value
 
 lazy val afterDockerBuild = taskKey[Unit]("Push Docker to registry")
 afterDockerBuild := ({
   val s: TaskStreams = streams.value
   val shell: Seq[String] = if (sys.props("os.name").contains("Windows")) Seq("cmd", "/c") else Seq("bash", "-c")
-  val imageName = author + "/" + packageName.value + ":0.1.0-SNAPSHOT"
+  val imageName = author + "/" + packageName.value
   val registry = "registry.fsoc.hpi.uni-potsdam.de/" + author + "/" + packageName.value + ":1"
   val dockerTag: Seq[String] = shell :+ "docker tag " + imageName + " " + registry
   val dockerPush: Seq[String] = shell :+ "docker push " + registry
@@ -74,15 +76,13 @@ afterDockerBuild := ({
 //  }
 //}.value
 
-enablePlugins(JavaAppPackaging)
-enablePlugins(DockerPlugin)
+enablePlugins(JavaServerAppPackaging)
 
 // change the name of the project adding the prefix of the user
-packageName in Docker := author +  packageName.value
+packageName in Docker := author + "/" + packageName.value
 
 version in Docker := "latest"
 
-dockerExposedPorts := Seq(1600)
+dockerExposedPorts := Seq(1600, 1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609)
 
-//the base docker images
 dockerBaseImage := "java:8-jre"

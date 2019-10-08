@@ -5,14 +5,13 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.List;
 
 public class TrieSetTest {
 	private TrieSet trieSet;
 
-	private BitSet createBitSet(int... bits) {
-		BitSet set = new BitSet();
+	private SerializableBitSet createBitSet(int... bits) {
+		SerializableBitSet set = new SerializableBitSet(bits.length);
 		for (int i = 0; i < bits.length; i++) if (bits[i] == 1) set.set(i);
 		return set;
 	}
@@ -24,9 +23,9 @@ public class TrieSetTest {
 
 	@Test
 	private void testAdd() {
-		BitSet a = createBitSet(0, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 1, 0, 1, 0);
-		BitSet c = createBitSet(1, 1, 1, 1, 0);
+		SerializableBitSet a = createBitSet(0, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet c = createBitSet(1, 1, 1, 1, 0);
 
 		trieSet.add(a);
 		trieSet.add(b);
@@ -40,8 +39,8 @@ public class TrieSetTest {
 
 	@Test(dependsOnMethods = {"testAdd"})
 	private void testContains() {
-		BitSet a = createBitSet(1, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 0, 0, 0, 0);
+		SerializableBitSet a = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 0, 0, 0, 0);
 		trieSet.add(a);
 		Assert.assertEquals(trieSet.contains(a), true);
 		Assert.assertEquals(trieSet.contains(b), false);
@@ -49,8 +48,8 @@ public class TrieSetTest {
 
 	@Test(dependsOnMethods = {"testAdd"})
 	private void testSize() {
-		BitSet a = createBitSet(1, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 0, 0, 0, 0);
+		SerializableBitSet a = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 0, 0, 0, 0);
 
 		Assert.assertEquals(trieSet.size(), 0);
 		trieSet.add(a);
@@ -62,8 +61,8 @@ public class TrieSetTest {
 
 	@Test(dependsOnMethods = {"testAdd", "testSize", "testContains"})
 	private void testDelete() {
-		BitSet a = createBitSet(1, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 0, 1, 1, 1);
+		SerializableBitSet a = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 0, 1, 1, 1);
 
 		Assert.assertEquals(trieSet.size(), 0);
 		trieSet.add(a);
@@ -77,8 +76,8 @@ public class TrieSetTest {
 
 	@Test(dependsOnMethods = {"testAdd", "testDelete"})
 	private void testEmpty() {
-		BitSet a = createBitSet(1, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 0, 1, 0, 1);
+		SerializableBitSet a = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 0, 1, 0, 1);
 
 		Assert.assertEquals(trieSet.isEmpty(), true);
 		trieSet.add(a);
@@ -92,11 +91,11 @@ public class TrieSetTest {
 
 	@Test(dependsOnMethods = {"testAdd"})
 	private void testIterator() {
-		BitSet a = createBitSet(0, 1, 0, 1, 0);
-		BitSet b = createBitSet(1, 1, 0, 1, 0);
-		BitSet c = createBitSet(1, 1, 1, 1, 0);
-		BitSet d = createBitSet(1, 0, 1, 1, 0);
-		BitSet e = createBitSet(0, 1, 0, 1, 1);
+		SerializableBitSet a = createBitSet(0, 1, 0, 1, 0);
+		SerializableBitSet b = createBitSet(1, 1, 0, 1, 0);
+		SerializableBitSet c = createBitSet(1, 1, 1, 1, 0);
+		SerializableBitSet d = createBitSet(1, 0, 1, 1, 0);
+		SerializableBitSet e = createBitSet(0, 1, 0, 1, 1);
 
 		trieSet.add(a);
 		trieSet.add(b);
@@ -104,15 +103,15 @@ public class TrieSetTest {
 		trieSet.add(d);
 		trieSet.add(e);
 
-		List<BitSet> expectedList = new ArrayList<>();
+		List<SerializableBitSet> expectedList = new ArrayList<>();
 		expectedList.add(a);
 		expectedList.add(b);
 		expectedList.add(c);
 		expectedList.add(d);
 		expectedList.add(e);
 
-		List<BitSet> actualList = new ArrayList<>();
-		for (BitSet set : trieSet) actualList.add(set);
+		List<SerializableBitSet> actualList = new ArrayList<>();
+		for (SerializableBitSet set : trieSet) actualList.add(set);
 
 		Assert.assertEqualsNoOrder(actualList.toArray(), expectedList.toArray());
 	}
