@@ -20,6 +20,8 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 		final ActorRef[] dataBouncer = new ActorRef[1];
 
+		System.out.println("Memory: " + Runtime.getRuntime().maxMemory());
+
 		Cluster.get(system).registerOnMemberUp(() -> {
 //			system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 //			system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);

@@ -22,6 +22,11 @@ public class ReadDataTable {
 
 			String[] values = null;
 			while ((values = csvReader.readNext()) != null) {
+				if(records.size() > 0 && records.get(0).length != values.length) {
+					System.out.println("Skip Line!");
+					continue;
+				}
+
 				records.add(values);
 			}
 		}

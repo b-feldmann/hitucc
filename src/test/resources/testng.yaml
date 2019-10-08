@@ -12,3 +12,7 @@ tests:
   - name: Model
     packages:
       - name: hit_ucc.model
+
+  - name: Performance
+    packages:
+      - name: hit_ucc.performance

@@ -7,6 +7,7 @@ enablePlugins(TestNGPlugin)
 
 // to be able to use exit(int) I fork the jvm and kill the fork and not the sbt-shell
 fork in run := true
+javaOptions in run += "-Xmx4096M"
 
 // set the main class for sbt - is not necessary if only using one class with a main method
 mainClass := Some("hit_ucc.HitUCCApp")
@@ -36,14 +37,14 @@ lazy val app = (project in file("."))
       "org.projectlombok" % "lombok" % "1.18.2",
       "org.apache.commons" % "commons-collections4" % "4.0",
       "com.opencsv" % "opencsv" % "3.3",
-      "org.roaringbitmap" % "RoaringBitmap" % "0.8.9"
+      "org.roaringbitmap" % "RoaringBitmap" % "0.8.9",
+      "org.javolution" % "javolution" % "5.3.1"
     ),
   )
 
 // define tasks
 TaskKey[Unit]("bridgesTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 8 -i bridges.csv --csvDelimiter ,").value
 TaskKey[Unit]("bridgesTaskManyWorker") := (run in Compile).toTask(" peer-host --workers 36 -ddf 8 -i bridges.csv --csvDelimiter ,").value
-TaskKey[Unit]("flightTask") := (run in Compile).toTask(" flight peer host system").value
 TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" peer-host --workers 4 --minWorkers 8 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" peer-host --workers 1 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 127.17.0.7 --masterport 1600").value
