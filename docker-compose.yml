@@ -1,0 +1,41 @@
+version: '2'
+
+services:
+  seed:
+    image: bfeldmann/hitucc
+    command: host --workers 4 -i ncvoter_Statewide.10000r.csv
+    volumes:
+      - path-to-data/data:/opt/docker/data
+    ports:
+      - '1600:1600'
+    environment:
+      CLUSTER_PORT: 1600
+      CLUSTER_IP: seed
+      SEED_PORT_1600_TCP_ADDR: seed
+      SYSTEM_COUNT: 3
+
+  node1:
+    depends_on:
+      - seed
+    image: bfeldmann/hitucc
+    command: peer --workers 4
+    ports:
+      - '1601:1601'
+    environment:
+      CLUSTER_PORT: 1601
+      CLUSTER_IP: node1
+      SEED_PORT_1600_TCP_ADDR: seed
+      SYSTEM_COUNT: 3
+
+  node2:
+    depends_on:
+      - seed
+    image: bfeldmann/hitucc
+    command: peer --workers 4
+    ports:
+      - '1602:1602'
+    environment:
+      CLUSTER_PORT: 1602
+      CLUSTER_IP: node2
+      SEED_PORT_1600_TCP_ADDR: seed
+      SYSTEM_COUNT: 3

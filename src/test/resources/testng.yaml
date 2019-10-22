@@ -3,16 +3,16 @@ verbose: 2
 tests:
   - name: Behaviour.DifferenceSets
     packages:
-      - name: hit_ucc.behaviour.differenceSets
+      - name: hitucc.behaviour.differenceSets
 
   - name: Behaviour.Dictionary
     packages:
-      - name: hit_ucc.behaviour.dictionary
+      - name: hitucc.behaviour.dictionary
 
   - name: Model
     packages:
-      - name: hit_ucc.model
+      - name: hitucc.model
 
   - name: Performance
     packages:
-      - name: hit_ucc.performance
+      - name: hitucc.performance

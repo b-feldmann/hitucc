@@ -1,6 +1,6 @@
 # Hit UCC
 
-Distributable UCC Discovery Algorithm based on Akka
+Distributable UCC Discovery Algorithm based on Akka - Implementation for my ongoing master thesis
 
 ## Motivation
 Nowadays, tables in databases contain a lot of data. They do not only have many rows but also many columns. Tables are so large that the data becomes difficult to understand. Most often, structural information or documentation of the data is missing. It is of utmost importance to understand the data in order to work with them and query the data.
@@ -27,12 +27,10 @@ We have decided not to build a master-slave architecture. This is easier to deve
 
 There are exactly 2 synchronization steps in the entire algorithm. A node reads the data and distributes it to all other nodes and itself. From then on, each node processes its tasks independently. This is most of the algorithm timewise. When the nodes are finished, there is a large synchronization point. Once this point is reached it goes into step two. Here each node has all necessary data to work autonomously or to communicate with other nodes. Finally there is the last synchronization to finish the algorithm and distribute the result to all.
 
-TODO: When nodes are finished early or new ones are added, work-stealing concepts are used.
-
 ## Requirements
 
 In order to build and execute the code, you will need Java 8 and Maven.
-To make sure that your project is set up correctly in an IDE, you can run the tests in the `hit_ucc/src/test/java` folder. If you are operating from a command line instead, run `mvn test` in the folder with `pom.xml` file.
+To make sure that your project is set up correctly in an IDE, you can run the tests in the `hitucc/src/test/java` folder. If you are operating from a command line instead, run `mvn test` in the folder with `pom.xml` file.
 
 ## Execution instructions
 
@@ -40,8 +38,4 @@ To make sure that your project is set up correctly in an IDE, you can run the te
 - `docker:stage` - create dockerfile
 - `docker:publishLocal` - create docker container 
 
-Just run the main class `hit_ucc.HitUCCApp`, respectively, from within your IDE or from the command line. The app will then print an overview of the different possible parameters. Append parameters of your choice to the run configuration in your IDE or to your command line call, as exemplified below:
-* Parameters to start a peer to peer system with two local workers: `peer --workers 2 -i bridges.csv`
-* To start a peer to peer system with custom data duplication factor: `peer --workers 2 -i bridges.csv -ddf 8`
-* More complicated csv file with header and exotic delimiter: `peer --workers 4 -i flight_1k.csv --csvDelimiter ; --csvSkipHeader`
-* If every null value should be equals to each other null value just add: `peer --workers 2 -i bridges.csv --nullEqualsNull`
+You can start the algorithm via docker-compose up. Do not forget to change the mount path in the docker-compose.yml first.

@@ -10,7 +10,7 @@ fork in run := true
 javaOptions in run += "-Xmx4096M"
 
 // set the main class for sbt - is not necessary if only using one class with a main method
-mainClass := Some("hit_ucc.HitUCCApp")
+mainClass := Some("hitucc.HitUCCApp")
 
 maintainer := "Benjamin Feldmann <benjamin-feldmann@web.de>"
 
@@ -57,7 +57,7 @@ afterDockerBuild := ({
   val s: TaskStreams = streams.value
   val shell: Seq[String] = if (sys.props("os.name").contains("Windows")) Seq("cmd", "/c") else Seq("bash", "-c")
   val imageName = author + "/" + packageName.value
-  val registry = "registry.fsoc.hpi.uni-potsdam.de/" + author + "/" + packageName.value + ":1"
+  val registry = "registry.fsoc.hpi.uni-potsdam.de/" + author + "/" + packageName.value
   val dockerTag: Seq[String] = shell :+ "docker tag " + imageName + " " + registry
   val dockerPush: Seq[String] = shell :+ "docker push " + registry
   s.log.info("pushing docker image [" + imageName + "] to registry [" + registry + "]...")
@@ -84,6 +84,6 @@ packageName in Docker := author + "/" + packageName.value
 
 version in Docker := "latest"
 
-dockerExposedPorts := Seq(1600, 1601, 1602, 1603, 1604, 1605, 1606, 1607, 1608, 1609)
+dockerExposedPorts := Seq(8000)
 
 dockerBaseImage := "java:8-jre"
