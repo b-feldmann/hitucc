@@ -13,6 +13,7 @@ import java.io.Serializable;
 public class WorkerStateChangedMessage implements Serializable {
 	private static final long serialVersionUID = 4037295208965201337L;
 	private WorkerState state;
+	private PeerWorker.NETWORK_ACTION networkAction;
 
 	private WorkerStateChangedMessage() {
 	}

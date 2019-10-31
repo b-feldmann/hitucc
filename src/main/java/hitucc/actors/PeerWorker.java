@@ -89,14 +89,14 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private boolean otherHasPriority(ActorRef other) {
-		if (this.self().toString().equals(other.toString())) {
+		if (this.self().path().name().equals(other.path().name())) {
 			this.log.error("Actor String is not unique >.<");
 		}
 
-		this.log.info("{} priority over {} => {}", other.toString(), this.self().toString(), this.self().toString().compareTo(other.toString()) < 0);
-		this.log.info("{} priority over {} => {}", this.self().toString(), other.toString(), other.toString().compareTo(this.self().toString()) < 0);
+//		this.log.info("{} priority over {} => {}", other.path().name(), this.self().path().name(), this.self().path().name().compareTo(other.path().name()) < 0);
+//		this.log.info("{} priority over {} => {}", this.self().path().name(), other.path().name(), other.path().name().compareTo(this.self().path().name()) < 0);
 
-		return this.self().toString().compareTo(other.toString()) < 0;
+		return this.self().path().name().compareTo(other.path().name()) < 0;
 	}
 
 	@Override
@@ -135,12 +135,6 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(MemberUp message) {
-		try {
-			Thread.sleep(1000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-
 		register(message.member());
 	}
 
@@ -330,7 +324,7 @@ public class PeerWorker extends AbstractActor {
 
 		tasks.remove(0);
 		if (tasks.size() == 0) {
-			this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
+			this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE, currentNetworkAction), this.self());
 		} else {
 			List<Integer> tasksA = new ArrayList<>();
 			List<Integer> tasksB = new ArrayList<>();
@@ -343,9 +337,9 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(WorkerStateChangedMessage message) {
-		this.log.info("Received new state \"{}\" from {}", message.getState(), this.sender().toString());
-		List<ActorRef> worker = currentNetworkAction == NETWORK_ACTION.LOCAL ? localWorker : remoteLeadingWorker;
-		List<WorkerState> workerStates = currentNetworkAction == NETWORK_ACTION.LOCAL ? localWorkerStates : remoteLeadingWorkerStates;
+//		this.log.info("Received new state \"{}\" from {}", message.getState(), this.sender().toString());
+		List<ActorRef> worker = message.getNetworkAction() == NETWORK_ACTION.LOCAL ? localWorker : remoteLeadingWorker;
+		List<WorkerState> workerStates = message.getNetworkAction() == NETWORK_ACTION.LOCAL ? localWorkerStates : remoteLeadingWorkerStates;
 
 		for (int i = 0; i < workerStates.size(); i++) {
 			if (worker.get(i).equals(this.sender())) {
@@ -363,7 +357,7 @@ public class PeerWorker extends AbstractActor {
 			tryToMerge();
 		}
 
-		if (selfState == WorkerState.READY_TO_MERGE) {
+		if (selfState == WorkerState.READY_TO_MERGE && currentNetworkAction == message.getNetworkAction()) {
 			boolean finishedMerge = true;
 			for (WorkerState colleaguesState : workerStates) {
 				if (currentNetworkAction == NETWORK_ACTION.LOCAL) {
@@ -371,6 +365,7 @@ public class PeerWorker extends AbstractActor {
 						finishedMerge = false;
 					}
 				} else {
+					this.log.info("remote worker state: {}", colleaguesState);
 					if (colleaguesState != WorkerState.DONE_MERGING) {
 						finishedMerge = false;
 					}
@@ -380,20 +375,20 @@ public class PeerWorker extends AbstractActor {
 				if (currentNetworkAction == NETWORK_ACTION.LOCAL) {
 					this.log.info("Finished Local Merging!");
 					currentNetworkAction = NETWORK_ACTION.REMOTE;
-					this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE), this.self());
+					this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE, currentNetworkAction), this.self());
 				} else {
 					selfState = WorkerState.TREE_TRAVERSAL;
-//					for (ActorRef w : localWorker) {
-//						w.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnCount), this.self());
-//					}
+					for (ActorRef w : localWorker) {
+						w.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnCount), this.self());
+					}
 
 					this.log.info("Finished Global Merging!");
-//					treeSearchStart = System.currentTimeMillis();
-//					SerializableBitSet x = new SerializableBitSet(columnCount);
-//					SerializableBitSet y = new SerializableBitSet(columnCount);
-//					addRootTreeSearchNode();
-//					addChildToTreeSearchNode();
-//					this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
+					treeSearchStart = System.currentTimeMillis();
+					SerializableBitSet x = new SerializableBitSet(columnCount);
+					SerializableBitSet y = new SerializableBitSet(columnCount);
+					addRootTreeSearchNode();
+					addChildToTreeSearchNode();
+					this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 				}
 			}
 		}
@@ -427,7 +422,7 @@ public class PeerWorker extends AbstractActor {
 			}
 		}
 
-		this.log.info("Try to merge with {}/{} actors on the {} network", waitingWorkers.size(), worker.size(), currentNetworkAction == NETWORK_ACTION.LOCAL ? "local" : "remote");
+//		this.log.info("Try to merge with {}/{} actors on the {} network", waitingWorkers.size(), worker.size(), currentNetworkAction == NETWORK_ACTION.LOCAL ? "local" : "remote");
 
 		if (waitingWorkers.size() > 0) {
 			ActorRef randomRef = waitingWorkers.get(random.nextInt(waitingWorkers.size()));
@@ -648,7 +643,7 @@ public class PeerWorker extends AbstractActor {
 		List<ActorRef> worker = currentNetworkAction == NETWORK_ACTION.LOCAL ? localWorker : remoteLeadingWorker;
 
 		for (ActorRef w : worker) {
-			w.tell(new WorkerStateChangedMessage(state), this.self());
+			w.tell(new WorkerStateChangedMessage(state, currentNetworkAction), this.self());
 		}
 	}
 

@@ -25,13 +25,10 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 				"Workers: " + workers + "\n" +
 				"#################### ------------------ ####################");
 
-		Cluster.get(system).registerOnMemberUp(() -> {
-			for (int i = 0; i < workers; i++) {
-				system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
-			}
-
-			system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
-		});
+		for (int i = 0; i < workers; i++) {
+			system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
+		}
+		system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
 
 		Cluster.get(system).registerOnMemberRemoved(() -> {
 			System.out.println("TODO: print UCCs to file");

@@ -5,8 +5,8 @@ import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.cluster.Cluster;
 import akka.cluster.ClusterEvent;
-import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.ClusterEvent.MemberJoined;
+import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
@@ -32,6 +32,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private List<ActorRef> remoteWorker = new ArrayList<>();
 
 	private List<ActorWaitsForBatchModel> workerWaitsForBatch = new ArrayList<>();
+	private List<RegisterSystemMessage> systemsToRegister = new ArrayList<>();
 
 	private BatchRoutingTable routingTable;
 	private Batches batches;
@@ -91,7 +92,7 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void register(Member member) {
 		if (isValidMember(member)) {
-			if(getActorSystemID().equals(getMemberPort(member))) {
+			if (getActorSystemID().equals(getMemberPort(member))) {
 				this.getContext()
 						.actorSelection(member.address() + "/user/*")
 						.tell(new RegistrationMessage(), this.self());
@@ -104,16 +105,12 @@ public class PeerDataBouncer extends AbstractActor {
 	}
 
 	private void handle(MemberUp message) {
-		try {
-			Thread.sleep(1000);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-
+//		this.log.info("Member Up {}", message.member());
 		register(message.member());
 	}
 
 	private void handle(MemberJoined message) {
+//		this.log.info("Member Joined {}", message.member());
 //		register(message.member());
 	}
 
@@ -126,15 +123,19 @@ public class PeerDataBouncer extends AbstractActor {
 
 		if (this.sender().path().name().contains(PeerDataBouncer.DEFAULT_NAME)) {
 			remoteDataBouncer.add(this.sender());
-			this.log.info("Registered {}; {} registered data bouncer", this.sender().path().name(), remoteDataBouncer.size());
-			if(localWorker.size() == neededLocalWorkerCount) {
+//			this.log.info("Registered {}; {} registered data bouncer", this.sender().path().name(), remoteDataBouncer.size());
+			if (localWorker.size() == neededLocalWorkerCount) {
 				this.sender().tell(new RegisterSystemMessage(this.self(), localWorker, getLeadingWorker()), this.self());
 			}
 		} else if (this.sender().path().name().startsWith(PeerWorker.DEFAULT_NAME)) {
 			localWorker.add(this.sender());
-			this.log.info("Registered {} local worker {}", localWorker.size(), this.sender().path().name());
-			if(localWorker.size() == neededLocalWorkerCount) {
-				for(ActorRef bouncer : remoteDataBouncer) {
+//			this.log.info("Registered {} local worker {}", localWorker.size(), this.sender().path().name());
+			if (localWorker.size() == neededLocalWorkerCount) {
+				for (RegisterSystemMessage m : systemsToRegister) {
+					registerSystem(m);
+				}
+				systemsToRegister.clear();
+				for (ActorRef bouncer : remoteDataBouncer) {
 					bouncer.tell(new RegisterSystemMessage(this.self(), localWorker, getLeadingWorker()), this.self());
 				}
 			}
@@ -142,7 +143,7 @@ public class PeerDataBouncer extends AbstractActor {
 
 		this.sender().tell(new RegistrationMessage(), this.self());
 
-		if(localWorker.size() == neededLocalWorkerCount) {
+		if (localWorker.size() == neededLocalWorkerCount) {
 			if (task != null) {
 				handle(task);
 			}
@@ -151,8 +152,8 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private ActorRef getLeadingWorker() {
 		ActorRef leadingWorker = localWorker.get(0);
-		for(int i = 1; i < localWorker.size(); i++) {
-			if(leadingWorker.toString().compareTo(localWorker.get(i).toString()) > 0) {
+		for (int i = 1; i < localWorker.size(); i++) {
+			if (leadingWorker.toString().compareTo(localWorker.get(i).toString()) > 0) {
 				leadingWorker = localWorker.get(i);
 			}
 		}
@@ -161,12 +162,16 @@ public class PeerDataBouncer extends AbstractActor {
 	}
 
 	private void handle(RegisterSystemMessage message) {
-		this.log.info("register system");
+		if (localWorker.size() == neededLocalWorkerCount) registerSystem(message);
+		else systemsToRegister.add(message);
+	}
 
-		remoteDataBouncer.add(message.getDataBouncer());
+	private void registerSystem(RegisterSystemMessage message) {
+		this.log.info("register system #{}", registeredSystems + 1);
+
 		remoteWorker.addAll(message.getWorker());
 
-		for(ActorRef actor : localWorker) {
+		for (ActorRef actor : localWorker) {
 			actor.tell(message, this.self());
 		}
 

@@ -20,8 +20,6 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 		String clusterName = config.getString("clustering.cluster.name");
 		final ActorSystem system = createSystem(clusterName, config);
 
-		final ActorRef[] dataBouncer = new ActorRef[1];
-
 		int port = config.getInt("clustering.port");
 		String host = config.getString("clustering.ip");
 
@@ -31,15 +29,21 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 				"Workers: " + workers + "\n" +
 				"#################### ------------------ ####################");
 
-		Cluster.get(system).registerOnMemberUp(() -> {
 //			system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 //			system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
-			for (int i = 0; i < workers; i++) {
-				system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
-			}
+		for (int i = 0; i < workers; i++) {
+			system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
+		}
 
-			dataBouncer[0] = system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
+		final ActorRef dataBouncer = system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
+
+		Cluster.get(system).registerOnMemberUp(() -> {
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 
 			String[][] table = null;
 			try {
@@ -49,15 +53,9 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 				System.exit(0);
 			}
 
-			try {
-				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-
 			int systemCount = config.getInt("clustering.systems");
 
-			dataBouncer[0].tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1)), ActorRef.noSender());
+			dataBouncer.tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1)), ActorRef.noSender());
 		});
 
 		Cluster.get(system).registerOnMemberRemoved(() -> {
