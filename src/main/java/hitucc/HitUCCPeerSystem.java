@@ -6,6 +6,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import hitucc.actors.PeerDataBouncer;
 import hitucc.actors.PeerWorker;
+import hitucc.actors.Reaper;
 
 public class HitUCCPeerSystem extends HitUCCSystem {
 
@@ -25,6 +26,7 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 				"Workers: " + workers + "\n" +
 				"#################### ------------------ ####################");
 
+//		system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME + ":" + port);
 		for (int i = 0; i < workers; i++) {
 			system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
 		}

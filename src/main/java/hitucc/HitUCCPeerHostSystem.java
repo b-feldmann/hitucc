@@ -7,6 +7,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import hitucc.actors.PeerDataBouncer;
 import hitucc.actors.PeerWorker;
+import hitucc.actors.Reaper;
 import hitucc.actors.messages.TaskMessage;
 
 import java.io.IOException;
@@ -32,10 +33,10 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 //			system.actorOf(ClusterListener.props(), ClusterListener.DEFAULT_NAME);
 //			system.actorOf(MetricsListener.props(), MetricsListener.DEFAULT_NAME);
 
+//		system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME + ":" + port);
 		for (int i = 0; i < workers; i++) {
 			system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
 		}
-
 		final ActorRef dataBouncer = system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
 
 		Cluster.get(system).registerOnMemberUp(() -> {

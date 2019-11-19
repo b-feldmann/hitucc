@@ -80,6 +80,7 @@ public class PeerWorker extends AbstractActor {
 
 	@Override
 	public void preStart() {
+//		Reaper.watchWithDefaultReaper(this);
 		this.cluster.subscribe(getSelf(), ClusterEvent.initialStateAsEvents(), ClusterEvent.MemberEvent.class, ClusterEvent.UnreachableMember.class);
 	}
 
@@ -146,7 +147,7 @@ public class PeerWorker extends AbstractActor {
 		if (remoteWorker.contains(this.sender())) return;
 		if (remoteDataBouncer.contains(this.sender())) return;
 
-		this.context().watch(this.sender());
+//		this.context().watch(this.sender());
 
 		if (this.sender().path().name().contains(PeerDataBouncer.DEFAULT_NAME)) {
 			if (this.sender().path().name().equals(PeerDataBouncer.DEFAULT_NAME + getActorSystemID())) {
@@ -401,7 +402,7 @@ public class PeerWorker extends AbstractActor {
 					for(ActorRef bouncer : remoteDataBouncer) bouncer.tell(new StartTreeSearchMessage(), this.self());
 
 					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
-					this.log.info("Stopping myself..");
+					this.log.info("Stop peerWorker and create peerTreeSearchWorker");
 					getContext().stop(this.self());
 //					treeSearchStart = System.currentTimeMillis();
 //					SerializableBitSet x = new SerializableBitSet(columnCount);

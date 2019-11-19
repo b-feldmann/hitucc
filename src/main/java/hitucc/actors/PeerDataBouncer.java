@@ -39,6 +39,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private Batches batches;
 
 	private TaskMessage task;
+	private boolean started;
 
 	public PeerDataBouncer(Integer localWorkerCount) {
 		this.neededLocalWorkerCount = localWorkerCount;
@@ -54,6 +55,7 @@ public class PeerDataBouncer extends AbstractActor {
 
 	@Override
 	public void preStart() {
+//		Reaper.watchWithDefaultReaper(this);
 		cluster.subscribe(getSelf(), ClusterEvent.initialStateAsEvents(), ClusterEvent.MemberEvent.class, ClusterEvent.UnreachableMember.class);
 	}
 
@@ -83,7 +85,8 @@ public class PeerDataBouncer extends AbstractActor {
 				.match(RequestDataBatchMessage.class, this::handle)
 				.match(SendDataBatchMessage.class, this::handle)
 				.match(StartTreeSearchMessage.class, this::handle)
-				.match(Terminated.class, terminated -> {})
+				.match(Terminated.class, terminated -> {
+				})
 				.matchAny(object -> this.log.info("Meh.. Received unknown message: \"{}\" from \"{}\"", object.getClass().getName(), this.sender().path().name()))
 				.build();
 	}
@@ -121,7 +124,7 @@ public class PeerDataBouncer extends AbstractActor {
 		if (remoteDataBouncer.contains(this.sender())) return;
 		if (localWorker.contains(this.sender())) return;
 
-		this.context().watch(this.sender());
+//		this.context().watch(this.sender());
 
 		if (this.sender().path().name().contains(PeerDataBouncer.DEFAULT_NAME)) {
 			remoteDataBouncer.add(this.sender());
@@ -178,6 +181,10 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 
 		registeredSystems += 1;
+
+		if (task != null && registeredSystems + 1 == task.getMinSystems()) {
+			handle(task);
+		}
 	}
 
 	private void handle(TaskMessage task) {
@@ -193,6 +200,8 @@ public class PeerDataBouncer extends AbstractActor {
 			return;
 		}
 
+		if (started) return;
+		started = true;
 		this.log.info("Received Task Message with table of size [row: {}, columns: {}]", task.getInputFile().length, task.getInputFile()[0].length);
 
 		String[][] table = task.getInputFile();
@@ -347,7 +356,8 @@ public class PeerDataBouncer extends AbstractActor {
 	}
 
 	private void handle(StartTreeSearchMessage message) {
+		getContext().getSystem().actorOf(Reaper.props(), Reaper.DEFAULT_NAME);
 		getContext().stop(this.self());
-		this.log.info("Stopping myself..");
+		this.log.info("Stop dataBouncer and create Reaper");
 	}
 }

@@ -26,6 +26,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	long treeSearchStart = 0;
 	int finishedActorCount;
 	boolean dirtyAskActorIndex;
+	boolean waitForShutdown;
+	int waitForUccCount = -1;
 
 	private int workerInClusterCount;
 
@@ -75,6 +77,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 	@Override
 	public void preStart() {
+		Reaper.watchWithDefaultReaper(this);
 		this.cluster.subscribe(getSelf(), ClusterEvent.initialStateAsEvents(), ClusterEvent.MemberEvent.class, ClusterEvent.UnreachableMember.class);
 	}
 
@@ -106,6 +109,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 				.match(NeedTreeWorkOrFinishMessage.class, this::handle)
 				.match(TreeWorkMessage.class, this::handle)
 				.match(NoTreeWorkMessage.class, this::handle)
+				.match(NoTreeWorkAndFinishMessage.class, this::handle)
 				.match(UCCDiscoveredMessage.class, this::handle)
 				.match(ReportAndShutdownMessage.class, this::handle)
 				.matchAny(object -> this.log.info("Meh.. Received unknown message: \"{}\" from \"{}\"", object.getClass().getName(), this.sender().path().name()))
@@ -157,16 +161,26 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		otherWorker.sort((o1, o2) -> priority(o1, o2) ? -1 : 1);
 	}
 
+	private void handle(NoTreeWorkAndFinishMessage message) {
+		if (askActorIndex < otherWorker.size() - 2) {
+			askActorIndex = otherWorker.size() - 2;
+			dirtyAskActorIndex = false;
+		}
+
+		handle(new NeedTreeWorkMessage());
+	}
+
 	private void handle(NoTreeWorkMessage message) {
 		askActorIndex += 1;
 
-		if (askActorIndex == otherWorker.size()) {
+		if (askActorIndex >= otherWorker.size()) {
 			if (dirtyAskActorIndex) {
 				askActorIndex = 0;
 				otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
 				return;
 			}
 
+			waitForShutdown = true;
 			this.log.info("Finished all work and can't get any other");
 		} else {
 			if (askActorIndex == otherWorker.size() - 1) {
@@ -181,11 +195,11 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		if (backlogWorkStack.isEmpty()) {
 			finishedActorCount += 1;
 
-			if(finishedActorCount == otherWorker.size()) {
+			if (finishedActorCount == otherWorker.size()) {
 				for (ActorRef worker : otherWorker) {
-					worker.tell(new ReportAndShutdownMessage(), this.self());
+					worker.tell(new ReportAndShutdownMessage(discoveredUCCs.size()), this.self());
 				}
-				this.self().tell(new ReportAndShutdownMessage(), this.self());
+				this.self().tell(new ReportAndShutdownMessage(discoveredUCCs.size()), this.self());
 			}
 		}
 	}
@@ -194,7 +208,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //		this.log.info("Receive Need Work Message from {}", this.sender().path().name());
 		if (backlogWorkStack.isEmpty()) {
 //			this.log.info("Send no work");
-			this.sender().tell(new NoTreeWorkMessage(), this.self());
+			if (waitForShutdown) this.sender().tell(new NoTreeWorkAndFinishMessage(), this.self());
+			else this.sender().tell(new NoTreeWorkMessage(), this.self());
 		} else {
 //			this.log.info("Redistribute {}/{} tasks to other worker {}", backlogWorkStack.size() == 1 ? 0 : 1, backlogWorkStack.size(), this.sender().path().name());
 			ArrayDeque<TreeTask> newStack = new ArrayDeque<>();
@@ -290,16 +305,23 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 	private void handle(UCCDiscoveredMessage message) {
 		discoveredUCCs.add(message.ucc);
+
+		if (discoveredUCCs.size() == waitForUccCount) {
+			handle(new ReportAndShutdownMessage(waitForUccCount));
+		}
 	}
 
 	private void handle(ReportAndShutdownMessage message) {
+		if (discoveredUCCs.size() < message.getUccCount()) {
+			waitForUccCount = message.getUccCount();
+			return;
+		}
 		if (treeSearchStart != 0) {
 			this.log.info("Tree Search Cost: {}", System.currentTimeMillis() - treeSearchStart);
 		}
 
 		this.log.info("Discovered {} UCCs", discoveredUCCs.size());
 		this.getContext().stop(this.self());
-		this.getContext().getSystem().terminate();
 	}
 
 	private SerializableBitSet copySerializableBitSet(SerializableBitSet set, int newLength) {
