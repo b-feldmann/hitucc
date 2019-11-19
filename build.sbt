@@ -1,6 +1,6 @@
 import scala.sys.process._
 
-val akkaVersion = "2.5.24"
+val akkaVersion = "2.5.26"
 val author = "bfeldmann"
 
 enablePlugins(TestNGPlugin)
@@ -43,14 +43,14 @@ lazy val app = (project in file("."))
   )
 
 // define tasks
-TaskKey[Unit]("bridgesTask") := (run in Compile).toTask(" peer-host --workers 4 -ddf 8 -i bridges.csv --csvDelimiter ,").value
-TaskKey[Unit]("bridgesTaskManyWorker") := (run in Compile).toTask(" peer-host --workers 36 -ddf 8 -i bridges.csv --csvDelimiter ,").value
-TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" peer-host --workers 4 --minWorkers 8 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
-TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" peer-host --workers 1 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("bridgesTask") := (run in Compile).toTask(" host --workers 4 -ddf 8 -i bridges.csv --csvDelimiter ,").value
+TaskKey[Unit]("bridgesTaskManyWorker") := (run in Compile).toTask(" host --workers 36 -ddf 8 -i bridges.csv --csvDelimiter ,").value
+TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" host --workers 4 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" host --workers 1 -ddf 3 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 127.17.0.7 --masterport 1600").value
-TaskKey[Unit]("chessTask") := (run in Compile).toTask(" peer-host --workers 6 -i cheass.csv --csvDelimiter , --csvSkipHeader").value
-TaskKey[Unit]("chessTaskSingle") := (run in Compile).toTask(" peer-host --workers 1 -i chess.csv --csvDelimiter , --csvSkipHeader").value
-TaskKey[Unit]("censusTask") := (run in Compile).toTask(" peer-host --workers 8 -i CENSUS.csv --csvDelimiter ; --csvSkipHeader").value
+TaskKey[Unit]("chessTask") := (run in Compile).toTask(" host --workers 6 -i cheass.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("chessTaskSingle") := (run in Compile).toTask(" host --workers 1 -i chess.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("censusTask") := (run in Compile).toTask(" host --workers 8 -i CENSUS.csv --csvDelimiter ; --csvSkipHeader").value
 
 lazy val afterDockerBuild = taskKey[Unit]("Push Docker to registry")
 afterDockerBuild := ({

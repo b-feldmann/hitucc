@@ -3,6 +3,7 @@ package hitucc.actors;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
+import akka.actor.Terminated;
 import akka.cluster.Cluster;
 import akka.cluster.ClusterEvent;
 import akka.cluster.ClusterEvent.MemberJoined;
@@ -81,7 +82,8 @@ public class PeerDataBouncer extends AbstractActor {
 				.match(AddBatchRouteMessage.class, this::handle)
 				.match(RequestDataBatchMessage.class, this::handle)
 				.match(SendDataBatchMessage.class, this::handle)
-				.match(ReportAndShutdownMessage.class, this::handle)
+				.match(StartTreeSearchMessage.class, this::handle)
+				.match(Terminated.class, terminated -> {})
 				.matchAny(object -> this.log.info("Meh.. Received unknown message: \"{}\" from \"{}\"", object.getClass().getName(), this.sender().path().name()))
 				.build();
 	}
@@ -344,15 +346,8 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 	}
 
-	private void handle(ReportAndShutdownMessage message) {
-		shutdownActorSystem();
-	}
-
-	private void shutdownActorSystem() {
-		for (ActorRef worker : localWorker) {
-			worker.tell(new ReportAndShutdownMessage(), this.self());
-		}
-		this.getContext().stop(this.self());
-		getContext().getSystem().terminate();
+	private void handle(StartTreeSearchMessage message) {
+		getContext().stop(this.self());
+		this.log.info("Stopping myself..");
 	}
 }

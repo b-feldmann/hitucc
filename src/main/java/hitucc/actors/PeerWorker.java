@@ -3,6 +3,7 @@ package hitucc.actors;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.Props;
+import akka.actor.Terminated;
 import akka.cluster.Cluster;
 import akka.cluster.ClusterEvent;
 import akka.cluster.ClusterEvent.MemberJoined;
@@ -19,7 +20,6 @@ import hitucc.behaviour.differenceSets.BucketingCalculateMinimalSetsStrategy;
 import hitucc.behaviour.differenceSets.DifferenceSetDetector;
 import hitucc.behaviour.differenceSets.HashAddDifferenceSetStrategy;
 import hitucc.behaviour.differenceSets.TwoSidedMergeMinimalSetsStrategy;
-import hitucc.behaviour.oracle.HittingSetOracle;
 import hitucc.model.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -34,7 +34,7 @@ public class PeerWorker extends AbstractActor {
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
 	private final boolean useDictionaryEncoding = true;
-	long treeSearchStart = 0;
+
 	private Random random = new Random();
 	private List<ActorRef> remoteWorker = new ArrayList<>();
 	private List<ActorRef> remoteLeadingWorker = new ArrayList<>();
@@ -45,14 +45,10 @@ public class PeerWorker extends AbstractActor {
 	private List<WorkerState> localWorkerStates = new ArrayList<>();
 	private WorkerState selfState = WorkerState.NOT_STARTED;
 	private int columnCount = 0;
-	private int maxLocalTreeDepth = 10;
-	private int currentLocalTreeDepth = 0;
+
 	private SerializableBitSet[] minimalDifferenceSets = new SerializableBitSet[0];
 	private List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
 	private DifferenceSetDetector differenceSetDetector;
-	private List<TreeSearchNode> treeSearchNodes = new ArrayList<>();
-	private TreeSearchNode currentTreeNode;
-	private long currentTreeNodeId = 0;
 	private Batches batches;
 	private List<SingleDifferenceSetTask> tasks;
 	private boolean nullEqualsNull = false;
@@ -74,13 +70,17 @@ public class PeerWorker extends AbstractActor {
 		return this.self().path().name().substring(this.self().path().name().indexOf(":"));
 	}
 
+	private String getWorkerIndexInSystem() {
+		return this.self().path().name().substring(this.self().path().name().lastIndexOf(PeerWorker.DEFAULT_NAME) + PeerWorker.DEFAULT_NAME.length(), this.self().path().name().indexOf(":"));
+	}
+
 	private void createDifferenceSetDetector() {
 		differenceSetDetector = new DifferenceSetDetector(new HashAddDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnCount), new TwoSidedMergeMinimalSetsStrategy());
 	}
 
 	@Override
 	public void preStart() {
-		cluster.subscribe(getSelf(), ClusterEvent.initialStateAsEvents(), ClusterEvent.MemberEvent.class, ClusterEvent.UnreachableMember.class);
+		this.cluster.subscribe(getSelf(), ClusterEvent.initialStateAsEvents(), ClusterEvent.MemberEvent.class, ClusterEvent.UnreachableMember.class);
 	}
 
 	@Override
@@ -113,11 +113,8 @@ public class PeerWorker extends AbstractActor {
 				.match(DeclineMergeMessage.class, this::handle)
 				.match(WorkerStateChangedMessage.class, this::handle)
 				.match(MergeDifferenceSetsMessage.class, this::handle)
-				.match(SyncDifferenceSetsMessage.class, this::handle)
-				.match(TreeNodeWorkMessage.class, this::handle)
-				.match(TreeNodeFulfilledMessage.class, this::handle)
-				.match(UCCDiscoveredMessage.class, this::handle)
-				.match(ReportAndShutdownMessage.class, this::handle)
+				.match(StartTreeSearchMessage.class, this::handle)
+				.match(Terminated.class, terminated -> {})
 				.matchAny(object -> this.log.info("Meh.. Received unknown message: \"{}\" from \"{}\"", object.getClass().getName(), this.sender().path().name()))
 				.build();
 	}
@@ -348,9 +345,7 @@ public class PeerWorker extends AbstractActor {
 		}
 
 		if (this.self().equals(this.sender())) {
-			if (selfState != WorkerState.TREE_TRAVERSAL || message.getState() != WorkerState.READY_TO_MERGE) {
-				selfState = message.getState();
-			}
+			selfState = message.getState();
 		}
 
 		if (selfState == WorkerState.READY_TO_MERGE && message.getState() == WorkerState.READY_TO_MERGE) {
@@ -377,38 +372,52 @@ public class PeerWorker extends AbstractActor {
 					currentNetworkAction = NETWORK_ACTION.REMOTE;
 					this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE, currentNetworkAction), this.self());
 				} else {
-					selfState = WorkerState.TREE_TRAVERSAL;
-					for (ActorRef w : localWorker) {
-						w.tell(new SyncDifferenceSetsMessage(minimalDifferenceSets, columnCount), this.self());
-					}
+//					selfState = WorkerState.TREE_TRAVERSAL;
+//					for (ActorRef w : localWorker) {
+//						w.tell(new StartTreeSearchMessage(minimalDifferenceSets, columnCount), this.self());
+//					}
 
 					this.log.info("Finished Global Merging!");
-					treeSearchStart = System.currentTimeMillis();
-					SerializableBitSet x = new SerializableBitSet(columnCount);
-					SerializableBitSet y = new SerializableBitSet(columnCount);
-					addRootTreeSearchNode();
-					addChildToTreeSearchNode();
-					this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
-				}
-			}
-		}
 
-		if (selfState == WorkerState.DONE && message.getState() == WorkerState.DONE) {
-			boolean finished = true;
-			for (WorkerState state : workerStates) {
-				if (state != WorkerState.DONE) {
-					finished = false;
+//					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + 1 + remoteWorker.size() + remoteDataBouncer.size()];
+					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + remoteWorker.size()];
+					int index = 0;
+					for (ActorRef actor : localWorker) {
+						allOtherActors[index] = actor;
+						index++;
+					}
+//					allOtherActors[index] = dataBouncer;
+//					index++;
+					for (ActorRef actor : remoteWorker) {
+						allOtherActors[index] = actor;
+						index++;
+					}
+//					for (ActorRef actor : remoteDataBouncer) {
+//						allOtherActors[index] = actor;
+//						index++;
+//					}
+
+					dataBouncer.tell(new StartTreeSearchMessage(), this.self());
+					for(ActorRef bouncer : remoteDataBouncer) bouncer.tell(new StartTreeSearchMessage(), this.self());
+
+					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
+					this.log.info("Stopping myself..");
+					getContext().stop(this.self());
+//					treeSearchStart = System.currentTimeMillis();
+//					SerializableBitSet x = new SerializableBitSet(columnCount);
+//					SerializableBitSet y = new SerializableBitSet(columnCount);
+//					addRootTreeSearchNode();
+//					addChildToTreeSearchNode();
+//					this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 				}
-			}
-			if (finished) {
-				this.log.info("Finished Collecting {} UCCs from table!", discoveredUCCs.size());
 			}
 		}
 	}
 
-	private void handle(SyncDifferenceSetsMessage message) {
-		minimalDifferenceSets = message.differenceSets;
-		columnCount = message.columnsInTable;
+	private void handle(StartTreeSearchMessage message) {
+		getContext().getSystem().actorOf(PeerTreeSearchWorker.props(this.sender(), message.getMinimalDifferenceSets(), message.getColumnsInTable(), message.getWorkerInCluster()), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
+		this.log.info("Stopping myself..");
+		getContext().stop(this.self());
 	}
 
 	private void tryToMerge() {
@@ -475,170 +484,6 @@ public class PeerWorker extends AbstractActor {
 		broadcastAndSetState(WorkerState.READY_TO_MERGE);
 	}
 
-	private void addRootTreeSearchNode() {
-		currentTreeNode = new TreeSearchNode(this.sender(), ++currentTreeNodeId);
-		treeSearchNodes.add(currentTreeNode);
-	}
-
-	private void addNewTreeSearchNode(long nodeId) {
-		currentTreeNode = new TreeSearchNode(nodeId, this.sender(), ++currentTreeNodeId);
-		treeSearchNodes.add(currentTreeNode);
-	}
-
-	private void addChildToTreeSearchNode() {
-		currentTreeNode.addChild();
-	}
-
-	private TreeSearchNode childFulfilledTreeSearchNode(long nodeId) {
-		for (TreeSearchNode node : treeSearchNodes) {
-			node.childFinished(nodeId);
-			if (node.isFulfilled()) return node;
-		}
-
-		return null;
-	}
-
-	private void fulfillCurrentTreeNode() {
-		if (this.currentTreeNode.isFulfilled()) {
-			treeSearchNodes.remove(currentTreeNode);
-
-			currentTreeNode.getParent().tell(new TreeNodeFulfilledMessage(currentTreeNode.getParentNodeId()), this.self());
-		}
-	}
-
-	private void handle(TreeNodeFulfilledMessage message) {
-		currentTreeNode = childFulfilledTreeSearchNode(message.getNodeId());
-
-		if (currentTreeNode == null) return;
-		if (currentTreeNode.isRoot()) {
-			this.log.info("Finished UCC discovery!");
-
-			dataBouncer.tell(new ReportAndShutdownMessage(), this.self());
-//			for (ActorRef actorRef : colleagues) {
-//				actorRef.tell(new ReportAndShutdownMessage(), this.self());
-//			}
-//			this.self().tell(new ReportAndShutdownMessage(), this.self());
-//			getContext().getSystem().terminate();
-		} else {
-			fulfillCurrentTreeNode();
-		}
-
-	}
-
-	private void handle(TreeNodeWorkMessage message) {
-		if (selfState != WorkerState.TREE_TRAVERSAL) broadcastAndSetState(WorkerState.TREE_TRAVERSAL);
-
-		currentLocalTreeDepth = 1;
-		addNewTreeSearchNode(message.getNodeId());
-
-		SerializableBitSet x = message.getX();
-		SerializableBitSet y = message.getY();
-		int length = message.getLength();
-		SerializableBitSet[] differenceSets = message.getDifferenceSets();
-
-		handleLocal(x, y, length, differenceSets);
-	}
-
-	private void handleLocal(SerializableBitSet x, SerializableBitSet y, int length, SerializableBitSet[] differenceSets) {
-		currentLocalTreeDepth += 1;
-
-		HittingSetOracle.Status result = HittingSetOracle.extendable(x, y, length, differenceSets, columnCount);
-		switch (result) {
-			case MINIMAL:
-				this.report(x);
-				fulfillCurrentTreeNode();
-				break;
-			case EXTENDABLE:
-				this.split(x, y, length, differenceSets);
-				break;
-			case NOT_EXTENDABLE:
-				fulfillCurrentTreeNode();
-				// Ignore
-				break;
-			case FAILED:
-				fulfillCurrentTreeNode();
-				this.log.error("Oracle failed :(");
-				break;
-		}
-	}
-
-	private void report(SerializableBitSet ucc) {
-//		this.log.info("SET {}", DifferenceSetDetector.SerializableBitSetToString(ucc, columnCount));
-//		this.log.info("UCC: {}", toUCC(ucc));
-
-		discoveredUCCs.add(ucc);
-		for (ActorRef worker : localWorker) {
-			worker.tell(new UCCDiscoveredMessage(ucc), this.self());
-		}
-	}
-
-	private void split(SerializableBitSet x, SerializableBitSet y, int next, SerializableBitSet[] differenceSets) {
-		if (next < columnCount) {
-			SerializableBitSet xNew = copySerializableBitSet(x, columnCount);
-			xNew.set(next);
-			ActorRef randomRef = getRandomColleague();
-			addChildToTreeSearchNode();
-			randomRef.tell(new TreeNodeWorkMessage(xNew, y, next + 1, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
-
-			SerializableBitSet yNew = copySerializableBitSet(y, columnCount);
-			yNew.set(next);
-			if (currentLocalTreeDepth >= maxLocalTreeDepth) {
-				randomRef = getRandomColleague();
-				addChildToTreeSearchNode();
-				randomRef.tell(new TreeNodeWorkMessage(x, yNew, next + 1, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
-			} else {
-				handleLocal(x, yNew, next + 1, minimalDifferenceSets);
-			}
-		} else {
-			this.log.info("WHY IS THIS? ################################### This is not an error - just wanted to check if this branch can actually be reached ;)");
-			fulfillCurrentTreeNode();
-		}
-	}
-
-	private ActorRef getRandomColleague() {
-		if (localWorker.size() > 0) return localWorker.get(random.nextInt(localWorker.size()));
-
-		return this.self();
-	}
-
-	private void handle(UCCDiscoveredMessage message) {
-		discoveredUCCs.add(message.ucc);
-	}
-
-	private void handle(ReportAndShutdownMessage message) {
-		if (treeSearchStart != 0) {
-			this.log.info("Tree Search Cost: {}", System.currentTimeMillis() - treeSearchStart);
-		}
-
-		this.log.info("Discovered {} UCCs", discoveredUCCs.size());
-
-		this.getContext().stop(this.self());
-	}
-
-	private SerializableBitSet copySerializableBitSet(SerializableBitSet set, int newLength) {
-		SerializableBitSet copy = new SerializableBitSet(newLength);
-		for (int i = 0; i < set.logicalLength(); i++) {
-			if (set.get(i)) copy.set(i);
-		}
-
-		return copy;
-	}
-
-	private String toUCC(SerializableBitSet SerializableBitSet) {
-		if (SerializableBitSet.logicalLength() == 0) return "";
-
-		String output = "";
-		for (int i = 0; i < SerializableBitSet.logicalLength() - 1; i++) {
-			if (SerializableBitSet.get(i)) {
-				output += i + ", ";
-			}
-		}
-		if (SerializableBitSet.get(SerializableBitSet.logicalLength() - 1)) {
-			output += (SerializableBitSet.logicalLength() - 1) + ", ";
-		}
-		return output;
-	}
-
 	private void broadcastState(WorkerState state) {
 		List<ActorRef> worker = currentNetworkAction == NETWORK_ACTION.LOCAL ? localWorker : remoteLeadingWorker;
 
@@ -679,27 +524,6 @@ public class PeerWorker extends AbstractActor {
 		private SerializableBitSet[] differenceSets;
 
 		private MergeDifferenceSetsMessage() {
-		}
-	}
-
-	@Data
-	@AllArgsConstructor
-	private static class SyncDifferenceSetsMessage implements Serializable {
-		private static final long serialVersionUID = 7331387404648201337L;
-		private SerializableBitSet[] differenceSets;
-		private int columnsInTable;
-
-		private SyncDifferenceSetsMessage() {
-		}
-	}
-
-	@Data
-	@AllArgsConstructor
-	private static class UCCDiscoveredMessage implements Serializable {
-		private static final long serialVersionUID = 997981649989901337L;
-		private SerializableBitSet ucc;
-
-		private UCCDiscoveredMessage() {
 		}
 	}
 }
