@@ -58,9 +58,5 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 			dataBouncer.tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1)), ActorRef.noSender());
 		});
-
-		Cluster.get(system).registerOnMemberRemoved(() -> {
-			System.out.println("Member removed.");
-		});
 	}
 }

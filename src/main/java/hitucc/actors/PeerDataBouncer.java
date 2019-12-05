@@ -14,6 +14,8 @@ import akka.event.LoggingAdapter;
 import hitucc.HitUCCPeerHostSystem;
 import hitucc.HitUCCPeerSystem;
 import hitucc.actors.messages.*;
+import hitucc.behaviour.dictionary.DictionaryEncoder;
+import hitucc.behaviour.dictionary.IColumn;
 import hitucc.model.*;
 
 import java.util.ArrayList;
@@ -36,7 +38,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private List<RegisterSystemMessage> systemsToRegister = new ArrayList<>();
 
 	private BatchRoutingTable routingTable;
-	private Batches batches;
+	private EncodedBatches batches;
 
 	private TaskMessage task;
 	private boolean started;
@@ -83,7 +85,7 @@ public class PeerDataBouncer extends AbstractActor {
 				.match(SetupDataBouncerMessage.class, this::handle)
 				.match(AddBatchRouteMessage.class, this::handle)
 				.match(RequestDataBatchMessage.class, this::handle)
-				.match(SendDataBatchMessage.class, this::handle)
+				.match(SendEncodedDataBatchMessage.class, this::handle)
 				.match(StartTreeSearchMessage.class, this::handle)
 				.match(Terminated.class, terminated -> {
 				})
@@ -229,11 +231,27 @@ public class PeerDataBouncer extends AbstractActor {
 			remoteDataBouncer.tell(new SetupDataBouncerMessage(batchCount), this.self());
 		}
 
-		batches = new Batches(batchCount);
+		batches = new EncodedBatches(batchCount);
+
 		Random random = new Random();
-		for (String[] rawRow : table) {
-			batches.getBatch(random.nextInt(batchCount)).add(new Row(rawRow));
+		int columnCount = task.getAttributes();
+		DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
+//			DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
+		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(table.length);
+		for (String[] row : table) {
+			for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+				encoder[columnIndex].addValue(row[columnIndex]);
+			}
 		}
+		for (int rowIndex = 0; rowIndex < table.length; rowIndex++) {
+			int[] intRow = new int[columnCount];
+			for (int i = 0; i < columnCount; i++) {
+				IColumn column = encoder[i].getColumn();
+				intRow[i] = column.getValue(rowIndex);
+			}
+			batches.getBatch(random.nextInt(batchCount)).add(new EncodedRow(intRow));
+		}
+
 
 		for (int i = 0; i < batchCount; i++) {
 			this.log.info("Batch {} has {} rows", i, batches.getBatch(i).size());
@@ -283,7 +301,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private void handle(SetupDataBouncerMessage message) {
 		this.log.info("Setup Data Bouncer[{} batches]. Can now request and send batches.", message.getBatchCount());
 		this.log.info("Connected to {} local worker, {} remote worker and {} remote data-bouncer", localWorker.size(), remoteWorker.size(), remoteDataBouncer.size());
-		batches = new Batches(message.getBatchCount());
+		batches = new EncodedBatches(message.getBatchCount());
 		routingTable = new BatchRoutingTable(message.getBatchCount(), this.sender());
 
 		for (ActorWaitsForBatchModel waitFor : workerWaitsForBatch) {
@@ -297,15 +315,16 @@ public class PeerDataBouncer extends AbstractActor {
 	private void handle(RequestDataBatchMessage message) {
 		if (this.sender().path().name().startsWith(PeerDataBouncer.DEFAULT_NAME)) {
 			// other data bouncer wants data
-			List<Row> batch = batches.getBatch(message.getBatchIdentifier());
+			List<EncodedRow> batch = batches.getBatch(message.getBatchIdentifier());
 			int MAX_ROWS_PER_SPLIT = 100;
 			int i = MAX_ROWS_PER_SPLIT * message.getNextSplit();
-			List<Row> split = new ArrayList<>();
+			List<EncodedRow> split = new ArrayList<>();
 			for (int k = i; k - i < MAX_ROWS_PER_SPLIT && k < batch.size(); k++) {
 				split.add(batch.get(k));
 			}
-			this.sender().tell(new SendDataBatchMessage(message.getBatchIdentifier(), split,
-					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, (int) Math.ceil(1f * batch.size() / MAX_ROWS_PER_SPLIT)), this.self());
+			this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), split,
+					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, (int) Math.ceil(1f * batch.size() / MAX_ROWS_PER_SPLIT)) {
+			}, this.self());
 			if (((i + 1) / MAX_ROWS_PER_SPLIT) + 1 == split.size()) {
 				this.log.info("Send {} splits to remote data bouncer[{} rows]", ((i + 1) / MAX_ROWS_PER_SPLIT) + 1, split.size());
 			}
@@ -317,8 +336,8 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 
 			if (batches.hasBatch(message.getBatchIdentifier())) {
-				List<Row> batch = batches.getBatch(message.getBatchIdentifier());
-				this.sender().tell(new SendDataBatchMessage(message.getBatchIdentifier(), batch, 1, 1), this.self());
+				List<EncodedRow> batch = batches.getBatch(message.getBatchIdentifier());
+				this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), batch, 1, 1), this.self());
 			} else {
 				// load data from other dataBouncer first
 				workerWaitsForBatch.add(new ActorWaitsForBatchModel(this.sender(), message.getBatchIdentifier()));
@@ -331,7 +350,7 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 	}
 
-	private void handle(SendDataBatchMessage message) {
+	private void handle(SendEncodedDataBatchMessage message) {
 		batches.addToBatch(message.getBatchIdentifier(), message.getBatch());
 		if (message.getCurrentSplit() == message.getSplitCount()) {
 			// notify every other dataBouncer that I have the full batch
@@ -344,7 +363,7 @@ public class PeerDataBouncer extends AbstractActor {
 			for (int i = 0; i < workerWaitsForBatch.size(); i++) {
 				ActorWaitsForBatchModel waitFor = workerWaitsForBatch.get(i);
 				if (waitFor.getBatchIdentifier() == message.getBatchIdentifier()) {
-					waitFor.getActor().tell(new SendDataBatchMessage(message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()), 1, 1), this.self());
+					waitFor.getActor().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()), 1, 1), this.self());
 					workerWaitsForBatch.remove(i);
 					i -= 1;
 				}
@@ -354,6 +373,35 @@ public class PeerDataBouncer extends AbstractActor {
 			this.sender().tell(new RequestDataBatchMessage(message.getBatchIdentifier(), message.getCurrentSplit()), this.self());
 		}
 	}
+
+//	private void encodeBatches() {
+//		batches = new EncodedBatches(rawBatches.count());
+//		for(int i = 0; i < rawBatches.count(); i++) {
+//			encodeBatch(i);
+//		}
+//	}
+//
+//	private void encodeBatch(int batchId) {
+//		int columnCount = rawBatches.count();
+//		List<Row> rows = rawBatches.getBatch(batchId);
+//		DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
+////			DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
+//		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(rows.size());
+//		for (Row row : rows) {
+//			for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+//				encoder[columnIndex].addValue(row.values[columnIndex]);
+//			}
+//		}
+//		for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+//			int[] intRow = new int[columnCount];
+//			for (int i = 0; i < columnCount; i++) {
+//				IColumn column = encoder[i].getColumn();
+//				intRow[i] = column.getValue(rowIndex);
+//			}
+//			batches.addToBatch(batchId, new EncodedRow(intRow));
+//		}
+//		log.info("{} -> {}", rawBatches.getBatch(batchId).size(), batches.getBatch(batchId).size());
+//	}
 
 	private void handle(StartTreeSearchMessage message) {
 		getContext().getSystem().actorOf(Reaper.props(), Reaper.DEFAULT_NAME);

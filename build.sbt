@@ -1,6 +1,6 @@
 import scala.sys.process._
 
-val akkaVersion = "2.5.26"
+val akkaVersion = "2.6.0"
 val author = "bfeldmann"
 
 enablePlugins(TestNGPlugin)
@@ -38,7 +38,9 @@ lazy val app = (project in file("."))
       "org.apache.commons" % "commons-collections4" % "4.0",
       "com.opencsv" % "opencsv" % "3.3",
       "org.roaringbitmap" % "RoaringBitmap" % "0.8.9",
-      "org.javolution" % "javolution" % "5.3.1"
+      "org.javolution" % "javolution" % "5.3.1",
+      // -- Output --
+      "com.googlecode.json-simple" % "json-simple" % "1.1.1"
     ),
   )
 

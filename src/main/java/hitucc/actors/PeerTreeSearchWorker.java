@@ -13,7 +13,11 @@ import hitucc.model.SerializableBitSet;
 import hitucc.model.TreeTask;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
+import java.io.FileWriter;
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -40,6 +44,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	private List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
 	private ArrayDeque<TreeTask> backlogWorkStack = new ArrayDeque<>(maxLocalTreeDepth);
 
+	private boolean shouldOutputFile = false;
+
 	public PeerTreeSearchWorker(ActorRef initiator, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, int workerInClusterCount) {
 		this.minimalDifferenceSets = minimalDifferenceSets;
 		this.columnCount = columnsInTable;
@@ -53,6 +59,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		this.columnCount = columnsInTable;
 		this.workerInClusterCount = clusterWorker.length + 1;
 		this.log.info("{}/{} Worker in cluster", 1, workerInClusterCount);
+
+		this.shouldOutputFile = true;
 
 		for (ActorRef actor : clusterWorker) {
 			actor.tell(new StartTreeSearchMessage(minimalDifferenceSets, workerInClusterCount, columnsInTable), this.self());
@@ -321,6 +329,32 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		}
 
 		this.log.info("Discovered {} UCCs", discoveredUCCs.size());
+
+		if (shouldOutputFile) {
+
+			JSONObject obj = new JSONObject();
+			obj.put("Dataset Name", "?");
+			obj.put("Encode Data Runtime", 0);
+			obj.put("Build Difference Sets Runtime", 0);
+			obj.put("Tree Search Runtime", System.currentTimeMillis() - treeSearchStart);
+			obj.put("Algorithm Runtime", 0);
+
+			JSONArray results = new JSONArray();
+			for (SerializableBitSet bitSet : discoveredUCCs) {
+				results.add(toUCC(bitSet));
+			}
+			obj.put("results", results);
+
+			try (FileWriter file = new FileWriter("test-results.json")) {
+				file.write(obj.toJSONString());
+				this.log.info("Successfully Copied JSON Object to File (Path: {})", file);
+				file.flush();
+				file.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+
 		this.getContext().stop(this.self());
 	}
 
@@ -343,7 +377,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			}
 		}
 		if (SerializableBitSet.get(SerializableBitSet.logicalLength() - 1)) {
-			output += (SerializableBitSet.logicalLength() - 1) + ", ";
+			output += (SerializableBitSet.logicalLength() - 1);
 		}
 		return output;
 	}
