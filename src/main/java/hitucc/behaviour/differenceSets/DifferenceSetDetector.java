@@ -170,10 +170,7 @@ public class DifferenceSetDetector {
 				return minimalDifferenceSets;
 			}
 
-			minimalDifferenceSets = mergeSetsStrategy.mergeMinimalDifferenceSets(
-					minimalDifferenceSets,
-					calculateMinimalStrategy.calculateMinimalDifferenceSets(addStrategy.getIterable())
-			);
+			minimalDifferenceSets = calculateMinimalStrategy.calculateMinimalDifferenceSets(this, addStrategy.getIterable(), minimalDifferenceSets);
 			addStrategy.clearState();
 			return minimalDifferenceSets;
 		}

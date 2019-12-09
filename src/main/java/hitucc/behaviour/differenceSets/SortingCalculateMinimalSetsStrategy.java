@@ -22,4 +22,9 @@ public class SortingCalculateMinimalSetsStrategy implements ICalculateMinimalSet
 		SerializableBitSet[] result = new SerializableBitSet[foundMinimalSets.size()];
 		return foundMinimalSets.toArray(result);
 	}
+
+	@Override
+	public SerializableBitSet[] calculateMinimalDifferenceSets(DifferenceSetDetector differenceSetDetector, Iterable<SerializableBitSet> uniqueSets, SerializableBitSet[] oldMinimalSets) {
+		return differenceSetDetector.mergeMinimalDifferenceSets(oldMinimalSets, calculateMinimalDifferenceSets(uniqueSets));
+	}
 }

@@ -47,4 +47,9 @@ public class NaiveCalculateMinimalSetsStrategy implements ICalculateMinimalSetsS
 
 		return minimalDifferenceSets;
 	}
+
+	@Override
+	public SerializableBitSet[] calculateMinimalDifferenceSets(DifferenceSetDetector differenceSetDetector, Iterable<SerializableBitSet> uniqueSets, SerializableBitSet[] oldMinimalSets) {
+		return differenceSetDetector.mergeMinimalDifferenceSets(oldMinimalSets, calculateMinimalDifferenceSets(uniqueSets));
+	}
 }
