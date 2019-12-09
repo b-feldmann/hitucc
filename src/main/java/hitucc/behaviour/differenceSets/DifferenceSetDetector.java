@@ -94,6 +94,14 @@ public class DifferenceSetDetector {
 		minimalBitSets.add(potentialMinimal);
 	}
 
+	protected static boolean isMinimal(List<SerializableBitSet> minimalBitSets, SerializableBitSet potentialMinimal) {
+		for (SerializableBitSet set : minimalBitSets) {
+			if (isSubset(set, potentialMinimal)) return false;
+		}
+
+		return true;
+	}
+
 	public SerializableBitSet addDifferenceSet(String[] rowA, String[] rowB) {
 		return addDifferenceSet(rowA, rowB, false);
 	}
