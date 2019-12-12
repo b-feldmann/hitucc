@@ -192,7 +192,9 @@ public class PeerWorker extends AbstractActor {
 			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
 		}
 
-		batches = new EncodedBatches(message.getBatchCount());
+		if (batches == null) {
+			batches = new EncodedBatches(message.getBatchCount());
+		}
 		tasks = convertListToTasks(message.getDifferenceSetTasksA(), message.getDifferenceSetTasksB());
 		nullEqualsNull = message.isNullEqualsNull();
 
@@ -214,6 +216,21 @@ public class PeerWorker extends AbstractActor {
 		}
 	}
 
+
+	private void preloadNextTask() {
+		if(tasks.size() > 1) {
+			SingleDifferenceSetTask nextTask = tasks.get(1);
+			if (!batches.hasBatch(nextTask.getSetA())) {
+				this.log.info("Pre-Request Data Batch with id {}", nextTask.getSetA());
+				dataBouncer.tell(new PreRequestDataBatchMessage(nextTask.getSetA()), this.self());
+			}
+			if (nextTask.getSetA() != nextTask.getSetB() && !batches.hasBatch(nextTask.getSetB())) {
+				this.log.info("Pre-Request Data Batch with id {}", nextTask.getSetB());
+				dataBouncer.tell(new PreRequestDataBatchMessage(nextTask.getSetB()), this.self());
+			}
+		}
+	}
+
 	private void tryToFindDifferenceSets() {
 		if (tasks.size() == 0) {
 			broadcastAndSetState(WorkerState.DONE_MERGING);
@@ -226,11 +243,13 @@ public class PeerWorker extends AbstractActor {
 			dataBouncer.tell(new RequestDataBatchMessage(currentTask.getSetA(), 0), this.self());
 			return;
 		}
-		if (!batches.hasBatch(currentTask.getSetB())) {
+		if (currentTask.getSetA() != currentTask.getSetB() && !batches.hasBatch(currentTask.getSetB())) {
 			this.log.info("Request Data Batch with id {}", currentTask.getSetB());
 			dataBouncer.tell(new RequestDataBatchMessage(currentTask.getSetB(), 0), this.self());
 			return;
 		}
+
+		preloadNextTask();
 
 		findDifferenceSets();
 	}
@@ -320,30 +339,18 @@ public class PeerWorker extends AbstractActor {
 					currentNetworkAction = NETWORK_ACTION.REMOTE;
 					this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE, currentNetworkAction), this.self());
 				} else {
-//					selfState = WorkerState.TREE_TRAVERSAL;
-//					for (ActorRef w : localWorker) {
-//						w.tell(new StartTreeSearchMessage(minimalDifferenceSets, columnCount), this.self());
-//					}
-
 					this.log.info("Finished Global Merging!");
 
-//					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + 1 + remoteWorker.size() + remoteDataBouncer.size()];
 					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + remoteWorker.size()];
 					int index = 0;
 					for (ActorRef actor : localWorker) {
 						allOtherActors[index] = actor;
 						index++;
 					}
-//					allOtherActors[index] = dataBouncer;
-//					index++;
 					for (ActorRef actor : remoteWorker) {
 						allOtherActors[index] = actor;
 						index++;
 					}
-//					for (ActorRef actor : remoteDataBouncer) {
-//						allOtherActors[index] = actor;
-//						index++;
-//					}
 
 					dataBouncer.tell(new StartTreeSearchMessage(), this.self());
 					for (ActorRef bouncer : remoteDataBouncer) bouncer.tell(new StartTreeSearchMessage(), this.self());
@@ -351,12 +358,6 @@ public class PeerWorker extends AbstractActor {
 					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
 					this.log.info("Stop peerWorker and create peerTreeSearchWorker");
 					getContext().stop(this.self());
-//					treeSearchStart = System.currentTimeMillis();
-//					SerializableBitSet x = new SerializableBitSet(columnCount);
-//					SerializableBitSet y = new SerializableBitSet(columnCount);
-//					addRootTreeSearchNode();
-//					addChildToTreeSearchNode();
-//					this.self().tell(new TreeNodeWorkMessage(x, y, 0, minimalDifferenceSets, columnCount, currentTreeNodeId), this.self());
 				}
 			}
 		}

@@ -11,14 +11,11 @@ import hitucc.actors.messages.*;
 import hitucc.behaviour.oracle.HittingSetOracle;
 import hitucc.model.SerializableBitSet;
 import hitucc.model.TreeTask;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,11 +24,11 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-tree-search-worker";
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
-	long treeSearchStart = 0;
-	int finishedActorCount;
-	boolean dirtyAskActorIndex;
-	boolean waitForShutdown;
-	int waitForUccCount = -1;
+	private long treeSearchStart = 0;
+	private int finishedActorCount;
+	private boolean dirtyAskActorIndex;
+	private boolean waitForShutdown;
+	private int waitForUccCount = -1;
 
 	private int workerInClusterCount;
 
@@ -79,10 +76,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(clusterWorker, minimalDifferenceSets, columnsInTable));
 	}
 
-	private String getActorSystemID() {
-		return this.self().path().name().substring(this.self().path().name().indexOf(":"));
-	}
-
 	@Override
 	public void preStart() {
 		Reaper.watchWithDefaultReaper(this);
@@ -100,10 +93,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		}
 
 		return A.path().name().compareTo(B.path().name()) < 0;
-	}
-
-	private boolean otherHasPriority(ActorRef other) {
-		return priority(this.self(), other);
 	}
 
 	@Override
@@ -175,7 +164,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			dirtyAskActorIndex = false;
 		}
 
-		handle(new NeedTreeWorkMessage());
+		this.log.info("No Tree Work and Finish Message");
+		handle(new NoTreeWorkMessage());
 	}
 
 	private void handle(NoTreeWorkMessage message) {
@@ -230,12 +220,11 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 	private void handle(TreeWorkMessage message) {
 		dirtyAskActorIndex = askActorIndex != 0;
-//		askActorIndex = 0;
 
 		backlogWorkStack.addAll(message.getTaskQueue());
-		if (!this.sender().equals(this.self())) {
-			this.log.info("Received Work from {}. Queue has size of {}", this.sender().path().name(), backlogWorkStack.size());
-		}
+//		if (!this.sender().equals(this.self())) {
+//			this.log.info("Received Work from {}. Queue has size of {}", this.sender().path().name(), backlogWorkStack.size());
+//		}
 
 		localTreeDepth = 0;
 		handleNextTask();
@@ -246,7 +235,11 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //			this.log.error("Backlog is empty!");
 
 			askActorIndex = 0;
-			otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
+			if(otherWorker.size() > 0) {
+				otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
+			} else {
+				this.self().tell(new ReportAndShutdownMessage(), this.self());
+			}
 
 			return;
 		}
@@ -312,7 +305,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	}
 
 	private void handle(UCCDiscoveredMessage message) {
-		discoveredUCCs.add(message.ucc);
+		discoveredUCCs.add(message.getUcc());
 
 		if (discoveredUCCs.size() == waitForUccCount) {
 			handle(new ReportAndShutdownMessage(waitForUccCount));
@@ -370,25 +363,15 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	private String toUCC(SerializableBitSet SerializableBitSet) {
 		if (SerializableBitSet.logicalLength() == 0) return "";
 
-		String output = "";
+		StringBuilder output = new StringBuilder();
 		for (int i = 0; i < SerializableBitSet.logicalLength() - 1; i++) {
 			if (SerializableBitSet.get(i)) {
-				output += i + ", ";
+				output.append(i).append(", ");
 			}
 		}
 		if (SerializableBitSet.get(SerializableBitSet.logicalLength() - 1)) {
-			output += (SerializableBitSet.logicalLength() - 1);
+			output.append(SerializableBitSet.logicalLength() - 1);
 		}
-		return output;
-	}
-
-	@Data
-	@AllArgsConstructor
-	private static class UCCDiscoveredMessage implements Serializable {
-		private static final long serialVersionUID = 997981649989901337L;
-		private SerializableBitSet ucc;
-
-		private UCCDiscoveredMessage() {
-		}
+		return output.toString();
 	}
 }

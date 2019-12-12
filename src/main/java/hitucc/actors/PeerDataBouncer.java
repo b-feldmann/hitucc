@@ -85,6 +85,7 @@ public class PeerDataBouncer extends AbstractActor {
 				.match(SetupDataBouncerMessage.class, this::handle)
 				.match(AddBatchRouteMessage.class, this::handle)
 				.match(RequestDataBatchMessage.class, this::handle)
+				.match(PreRequestDataBatchMessage.class, this::handle)
 				.match(SendEncodedDataBatchMessage.class, this::handle)
 				.match(StartTreeSearchMessage.class, this::handle)
 				.match(Terminated.class, terminated -> {
@@ -261,6 +262,7 @@ public class PeerDataBouncer extends AbstractActor {
 			tasksPerWorker[i] = new ArrayList<>();
 		}
 
+		this.log.info("Calculate Task Distribution");
 		int workerIndex = 0;
 		for (int i = 0; i < batchCount; i += 1) {
 			for (int k = i; k < batchCount; k += 1) {
@@ -269,11 +271,8 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 		}
 
+		this.log.info("Start Main Algorithm");
 		for (int i = 0; i < workerInCluster(); i += 1) {
-			StringBuilder taskString = new StringBuilder();
-			for (SingleDifferenceSetTask t : tasksPerWorker[i])
-				taskString.append(" ").append(t.getSetA()).append("|").append(t.getSetB());
-			this.log.info("Tasks for worker {}:{}", i, taskString);
 			List<Integer> tasksA = new ArrayList<>();
 			List<Integer> tasksB = new ArrayList<>();
 			for (SingleDifferenceSetTask singleTask : tasksPerWorker[i]) {
@@ -347,6 +346,16 @@ public class PeerDataBouncer extends AbstractActor {
 				batches.setBatchLoading(message.getBatchIdentifier());
 				getDataBouncerWithBatch(message.getBatchIdentifier()).tell(new RequestDataBatchMessage(message.getBatchIdentifier(), 0), this.self());
 			}
+		}
+	}
+
+	private void handle(PreRequestDataBatchMessage message) {
+		if (!batches.hasBatch(message.getBatchIdentifier())) {
+			// is already loading batch
+			if (batches.isBatchLoading(message.getBatchIdentifier())) return;
+
+			batches.setBatchLoading(message.getBatchIdentifier());
+			getDataBouncerWithBatch(message.getBatchIdentifier()).tell(new RequestDataBatchMessage(message.getBatchIdentifier(), 0), this.self());
 		}
 	}
 
