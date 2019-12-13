@@ -18,9 +18,7 @@ import hitucc.behaviour.dictionary.DictionaryEncoder;
 import hitucc.behaviour.dictionary.IColumn;
 import hitucc.model.*;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class PeerDataBouncer extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-data-bouncer";
@@ -42,6 +40,8 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private TaskMessage task;
 	private boolean started;
+
+	private List<List<ActorRef>> workerPerSystem;
 
 	public PeerDataBouncer(Integer localWorkerCount) {
 		this.neededLocalWorkerCount = localWorkerCount;
@@ -178,6 +178,7 @@ public class PeerDataBouncer extends AbstractActor {
 		this.log.info("register system #{}", registeredSystems + 1);
 
 		remoteWorker.addAll(message.getWorker());
+		workerPerSystem.add(new ArrayList<>(message.getWorker()));
 
 		for (ActorRef actor : localWorker) {
 			actor.tell(message, this.self());
@@ -192,6 +193,9 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void handle(TaskMessage task) {
 		this.task = task;
+		if (workerPerSystem == null) {
+			workerPerSystem = new ArrayList<>();
+		}
 
 		if (localWorker.size() + 1 < neededLocalWorkerCount) {
 			this.log.info("{} local worker missing before the algorithm can be started", neededLocalWorkerCount - localWorker.size() - 1);
@@ -202,6 +206,8 @@ public class PeerDataBouncer extends AbstractActor {
 			this.log.info("{} systems missing before the algorithm can be started", task.getMinSystems() - registeredSystems - 1);
 			return;
 		}
+
+		workerPerSystem.add(new ArrayList<>(localWorker));
 
 		if (started) return;
 		started = true;
@@ -271,6 +277,10 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 		}
 
+		this.log.info("Redistribute Tasks");
+
+		redistributeTasks(tasksPerWorker);
+
 		this.log.info("Start Main Algorithm");
 		for (int i = 0; i < workerInCluster(); i += 1) {
 			List<Integer> tasksA = new ArrayList<>();
@@ -286,6 +296,87 @@ public class PeerDataBouncer extends AbstractActor {
 				worker = remoteWorker.get(i - localWorker.size());
 			}
 			worker.tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batchCount, task.isNullEqualsNull()), this.self());
+		}
+	}
+
+	private boolean isValidSwap(List<SingleDifferenceSetTask>[] tasksPerWorker, int[] actorSystemIndexToWorkerIndex, int systemIndexA, int taskListA, int listAIndex, int systemIndexB, int taskListB, int listBIndex) {
+		Set<Integer> scoreListA = new HashSet<>();
+		if (systemIndexA != registeredSystems) {
+			for (int i = actorSystemIndexToWorkerIndex[systemIndexA]; i < actorSystemIndexToWorkerIndex[systemIndexA] + workerPerSystem.get(systemIndexA).size(); i++) {
+				List<SingleDifferenceSetTask> currentTaskList = tasksPerWorker[i];
+				for (int k = 0; k < currentTaskList.size(); k++) {
+					if (i == taskListA && k == listAIndex) continue;
+					scoreListA.add(currentTaskList.get(k).getSetA());
+					scoreListA.add(currentTaskList.get(k).getSetB());
+				}
+			}
+		}
+
+		Set<Integer> scoreListB = new HashSet<>();
+		if (systemIndexA != registeredSystems) {
+			for (int i = actorSystemIndexToWorkerIndex[systemIndexB]; i < actorSystemIndexToWorkerIndex[systemIndexB] + workerPerSystem.get(systemIndexB).size(); i++) {
+				List<SingleDifferenceSetTask> currentTaskList = tasksPerWorker[i];
+				for (int k = 0; k < currentTaskList.size(); k++) {
+					if (i == taskListB && k == listBIndex) continue;
+					scoreListB.add(currentTaskList.get(k).getSetA());
+					scoreListB.add(currentTaskList.get(k).getSetB());
+				}
+			}
+		}
+
+		int aScore = scoreListA.size();
+		if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) aScore += 1;
+		if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) aScore += 1;
+		int aScoreAfterSwap = scoreListA.size();
+		if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) aScoreAfterSwap += 1;
+		if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) aScoreAfterSwap += 1;
+
+		int bScore = scoreListB.size();
+		if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) bScore += 1;
+		if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) bScore += 1;
+		int bScoreAfterSwap = scoreListA.size();
+		if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) bScoreAfterSwap += 1;
+		if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) bScoreAfterSwap += 1;
+
+		return aScore + bScore > aScoreAfterSwap + bScoreAfterSwap;
+	}
+
+	private void redistributeTasks(List<SingleDifferenceSetTask>[] tasksPerWorker) {
+		if (registeredSystems == 0) return;
+
+		int swaps = remoteWorker.size() + localWorker.size();
+
+		Random random = new Random();
+
+		int[] actorSystemIndexToWorkerIndex = new int[registeredSystems + 1];
+		actorSystemIndexToWorkerIndex[0] = 0;
+		for (int i = 1; i < actorSystemIndexToWorkerIndex.length; i++) {
+			actorSystemIndexToWorkerIndex[i] = actorSystemIndexToWorkerIndex[i - 1] + workerPerSystem.get(i - 1).size();
+		}
+
+		int[] actorSystemIndices = new int[registeredSystems + 1];
+		for (int i = 0; i < actorSystemIndices.length; i++) {
+			actorSystemIndices[i] = i;
+		}
+
+		for (int i = 0; i < swaps; i++) {
+			int firstSystemIndex = actorSystemIndices[random.nextInt(actorSystemIndices.length)];
+			actorSystemIndices[firstSystemIndex] = actorSystemIndices[actorSystemIndices.length - 1];
+			int secondSystemIndex = actorSystemIndices[random.nextInt(actorSystemIndices.length - 1)];
+			actorSystemIndices[firstSystemIndex] = firstSystemIndex;
+
+			int firstSystemWorkerIndex = random.nextInt(workerPerSystem.get(firstSystemIndex).size()) + actorSystemIndexToWorkerIndex[firstSystemIndex];
+			int secondSystemWorkerIndex = random.nextInt(workerPerSystem.get(secondSystemIndex).size()) + actorSystemIndexToWorkerIndex[secondSystemIndex];
+
+			int firstWorkerTaskListIndex = random.nextInt(tasksPerWorker[firstSystemWorkerIndex].size());
+			int secondWorkerTaskListIndex = random.nextInt(tasksPerWorker[secondSystemWorkerIndex].size());
+
+			boolean validSwap = isValidSwap(tasksPerWorker, actorSystemIndexToWorkerIndex, firstSystemIndex, firstSystemWorkerIndex, firstWorkerTaskListIndex, secondSystemIndex, secondSystemWorkerIndex, secondWorkerTaskListIndex);
+			if (validSwap) {
+				SingleDifferenceSetTask tmp = tasksPerWorker[firstSystemWorkerIndex].get(firstWorkerTaskListIndex);
+				tasksPerWorker[firstSystemWorkerIndex].set(firstWorkerTaskListIndex, tasksPerWorker[secondSystemWorkerIndex].get(secondWorkerTaskListIndex));
+				tasksPerWorker[secondSystemWorkerIndex].set(secondWorkerTaskListIndex, tmp);
+			}
 		}
 	}
 
