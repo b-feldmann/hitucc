@@ -45,7 +45,7 @@ public class HitUCCApp {
 	}
 
 	static class PeerCommand {
-		public static final int DEFAULT_WORKERS = 4;
+		public static final int DEFAULT_WORKERS = Runtime.getRuntime().availableProcessors() - 1;
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
 		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
 		public static final boolean DEFAULT_CSV_SKIP_HEADER = false;
