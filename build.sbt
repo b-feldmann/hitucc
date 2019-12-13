@@ -1,6 +1,6 @@
 import scala.sys.process._
 
-val akkaVersion = "2.6.0"
+val akkaVersion = "2.5.26"
 val author = "bfeldmann"
 
 enablePlugins(TestNGPlugin)
@@ -33,8 +33,8 @@ lazy val app = (project in file("."))
       // -- other stuff --
       "org.apache.commons" % "commons-collections4" % "4.0",
       "com.beust" % "jcommander" % "1.72",
-      "com.twitter" %% "chill-akka" % "0.9.3",
-      "org.projectlombok" % "lombok" % "1.18.2",
+      "com.twitter" %% "chill-akka" % "0.9.4",
+      "org.projectlombok" % "lombok" % "1.18.10" % "provided",
       "org.apache.commons" % "commons-collections4" % "4.0",
       "com.opencsv" % "opencsv" % "3.3",
       "org.roaringbitmap" % "RoaringBitmap" % "0.8.9",

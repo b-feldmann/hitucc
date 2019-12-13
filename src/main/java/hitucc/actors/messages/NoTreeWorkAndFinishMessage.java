@@ -8,5 +8,5 @@ import java.io.Serializable;
 @Data
 @AllArgsConstructor
 public class NoTreeWorkAndFinishMessage implements Serializable {
-	private static final long serialVersionUID = 7333555555533492487L;
+	private static final long serialVersionUID = 7344478349553349537L;
 }

@@ -11,7 +11,6 @@ import hitucc.actors.messages.*;
 import hitucc.behaviour.oracle.HittingSetOracle;
 import hitucc.model.SerializableBitSet;
 import hitucc.model.TreeTask;
-import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.io.FileWriter;
@@ -312,6 +311,10 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		}
 	}
 
+	private String beautifyJson(String jsonString) {
+		return jsonString.replaceAll(",",",\n\t").replaceAll(":",": ").replaceAll("\\{","{\n\t").replaceAll("}","\n}");
+	}
+
 	private void handle(ReportAndShutdownMessage message) {
 		if (discoveredUCCs.size() < message.getUccCount()) {
 			waitForUccCount = message.getUccCount();
@@ -331,15 +334,16 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			obj.put("Build Difference Sets Runtime", 0);
 			obj.put("Tree Search Runtime", System.currentTimeMillis() - treeSearchStart);
 			obj.put("Algorithm Runtime", 0);
+			obj.put("Minimal UCC Count", discoveredUCCs.size());
 
-			JSONArray results = new JSONArray();
-			for (SerializableBitSet bitSet : discoveredUCCs) {
-				results.add(toUCC(bitSet));
-			}
-			obj.put("results", results);
+//			JSONArray results = new JSONArray();
+//			for (SerializableBitSet bitSet : discoveredUCCs) {
+//				results.add(toUCC(bitSet));
+//			}
+//			obj.put("results", results);
 
 			try (FileWriter file = new FileWriter("test-results.json")) {
-				file.write(obj.toJSONString());
+				file.write(beautifyJson(obj.toJSONString()));
 				this.log.info("Successfully Copied JSON Object to File (Path: {})", file);
 				file.flush();
 				file.close();

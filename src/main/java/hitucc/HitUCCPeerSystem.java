@@ -12,7 +12,7 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 	public static final String PEER_ROLE = "peer";
 
-	public static void start(int workers, String bindHost, int bindPort) {
+	public static void start(int workers) {
 		final Config config = ConfigFactory.parseString("akka.cluster.roles = [" + PEER_ROLE + "]\n").withFallback(ConfigFactory.load());
 		String clusterName = config.getString("clustering.cluster.name");
 		final ActorSystem system = createSystem(clusterName, config);

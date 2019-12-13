@@ -12,7 +12,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor(force = true)
 public class SendEncodedDataBatchMessage implements Serializable {
-	private static final long serialVersionUID = 4322411166379563033L;
+	private static final long serialVersionUID = 8888332257249502029L;
 	private int batchIdentifier;
 	private List<EncodedRow> batch;
 	private int currentSplit;

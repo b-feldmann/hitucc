@@ -41,7 +41,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private TaskMessage task;
 	private boolean started;
 
-	private List<List<ActorRef>> workerPerSystem;
+	private List<List<ActorRef>> workerPerSystem = new ArrayList<>();
 
 	public PeerDataBouncer(Integer localWorkerCount) {
 		this.neededLocalWorkerCount = localWorkerCount;
@@ -193,9 +193,6 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void handle(TaskMessage task) {
 		this.task = task;
-		if (workerPerSystem == null) {
-			workerPerSystem = new ArrayList<>();
-		}
 
 		if (localWorker.size() + 1 < neededLocalWorkerCount) {
 			this.log.info("{} local worker missing before the algorithm can be started", neededLocalWorkerCount - localWorker.size() - 1);
@@ -227,7 +224,7 @@ public class PeerDataBouncer extends AbstractActor {
 					triangleCount += batchCount - i;
 				}
 			}
-			this.log.info("The Data Duplication Factor is set to auto: Factor is set to " + batchCount);
+			this.log.info("The Data Duplication Factor is set to auto: Factor is set to {}. Use {} work packages.", batchCount, triangleCount);
 		}
 		if (batchCount == 1) {
 			this.log.info("The Data Duplication Factor is set to 1. The program therefore cannot distribute the algorithm. This is not that bad, but it slows down the execution time significantly.");
@@ -277,9 +274,10 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 		}
 
-		this.log.info("Redistribute Tasks");
-
-		redistributeTasks(tasksPerWorker);
+		if (task.isGreedyTaskDistribution() && registeredSystems > 0) {
+			this.log.info("Redistribute Tasks");
+			redistributeTasks(tasksPerWorker);
+		}
 
 		this.log.info("Start Main Algorithm");
 		for (int i = 0; i < workerInCluster(); i += 1) {
@@ -325,19 +323,22 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 
 		int aScore = scoreListA.size();
-		if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) aScore += 1;
-		if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) aScore += 1;
 		int aScoreAfterSwap = scoreListA.size();
-		if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) aScoreAfterSwap += 1;
-		if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) aScoreAfterSwap += 1;
+		if (systemIndexA != registeredSystems) {
+			if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) aScore += 1;
+			if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) aScore += 1;
+			if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) aScoreAfterSwap += 1;
+			if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) aScoreAfterSwap += 1;
+		}
 
 		int bScore = scoreListB.size();
-		if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) bScore += 1;
-		if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) bScore += 1;
 		int bScoreAfterSwap = scoreListA.size();
-		if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) bScoreAfterSwap += 1;
-		if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) bScoreAfterSwap += 1;
-
+		if (systemIndexB != registeredSystems) {
+			if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) bScore += 1;
+			if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) bScore += 1;
+			if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) bScoreAfterSwap += 1;
+			if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) bScoreAfterSwap += 1;
+		}
 		return aScore + bScore > aScoreAfterSwap + bScoreAfterSwap;
 	}
 
@@ -413,10 +414,9 @@ public class PeerDataBouncer extends AbstractActor {
 				split.add(batch.get(k));
 			}
 			this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), split,
-					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, (int) Math.ceil(1f * batch.size() / MAX_ROWS_PER_SPLIT)) {
-			}, this.self());
+					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, (int) Math.ceil(1f * batch.size() / MAX_ROWS_PER_SPLIT)), this.self());
 			if (((i + 1) / MAX_ROWS_PER_SPLIT) + 1 == split.size()) {
-				this.log.info("Send {} splits to remote data bouncer[{} rows]", ((i + 1) / MAX_ROWS_PER_SPLIT) + 1, split.size());
+				this.log.info("Send {} splits to remote data bouncer[{} rows] BatchID: {}", ((i + 1) / MAX_ROWS_PER_SPLIT) + 1, split.size(), message.getBatchIdentifier());
 			}
 		} else {
 			// local worker wants data
@@ -442,7 +442,7 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void handle(PreRequestDataBatchMessage message) {
 		if (!batches.hasBatch(message.getBatchIdentifier())) {
-			// is already loading batch
+//			 is already loading batch
 			if (batches.isBatchLoading(message.getBatchIdentifier())) return;
 
 			batches.setBatchLoading(message.getBatchIdentifier());

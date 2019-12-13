@@ -4,6 +4,7 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.ParameterException;
 import com.beust.jcommander.Parameters;
+import com.opencsv.CSVParser;
 
 public class HitUCCApp {
 	public static void main(String[] args) {
@@ -24,10 +25,10 @@ public class HitUCCApp {
 
 			switch (jCommander.getParsedCommand()) {
 				case HitUCCPeerHostSystem.PEER_HOST_ROLE:
-					HitUCCPeerHostSystem.start(peerHostCommand.workers, peerHostCommand.input, peerHostCommand.csvDelimiter.charAt(0), peerHostCommand.csvSkipHeader, peerHostCommand.output, peerHostCommand.dataDuplicationFactor, peerHostCommand.nullEqualsNull, peerHostCommand.bindHost, peerHostCommand.bindPort);
+					HitUCCPeerHostSystem.start(peerHostCommand.workers, peerHostCommand.input, peerHostCommand.greedyTaskDistribution, peerHostCommand.csvDelimiter.charAt(0), peerHostCommand.csvSkipHeader, peerHostCommand.csvQuoteCharacter, peerHostCommand.csvEscapeCharacter, peerHostCommand.output, peerHostCommand.dataDuplicationFactor, peerHostCommand.nullEqualsNull);
 					break;
 				case HitUCCPeerSystem.PEER_ROLE:
-					HitUCCPeerSystem.start(peerCommand.workers, peerCommand.bindHost, peerCommand.bindPort);
+					HitUCCPeerSystem.start(peerCommand.workers);
 					break;
 				default:
 					throw new AssertionError();
@@ -47,20 +48,26 @@ public class HitUCCApp {
 	static class PeerCommand {
 		public static final int DEFAULT_WORKERS = Runtime.getRuntime().availableProcessors() - 1;
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
+		public static final boolean DEFAULT_GREEDY_TASK_DISTRIBUTION = false;
 		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
 		public static final boolean DEFAULT_CSV_SKIP_HEADER = false;
 
 		@Parameter(names = {"-w", "--workers"}, description = "number of workers to start locally", required = false)
 		int workers = DEFAULT_WORKERS;
 
-		@Parameter(names = {"-bh", "--bind-host"}, description = "this machine's host name or IP to bind against")
-		String bindHost = "0.0.0.0";
-		@Parameter(names = {"-bp", "--bind-port"}, description = "port to bind against", required = false)
-		int bindPort = -1;
+//		@Parameter(names = {"-bh", "--bind-host"}, description = "this machine's host name or IP to bind against")
+//		String bindHost = "0.0.0.0";
+//		@Parameter(names = {"-bp", "--bind-port"}, description = "port to bind against", required = false)
+//		int bindPort = -1;
 	}
 
 	@Parameters(commandDescription = "start a peer to peer host actor system")
 	static class PeerHostCommand extends PeerCommand {
+
+		@Parameter(names = {"-greedy", "--greedyTaskDistribution"},
+				description = "Set to true if you want to redistribute the subtasks for better network optimizations",
+				required = false)
+		boolean greedyTaskDistribution = DEFAULT_GREEDY_TASK_DISTRIBUTION;
 
 		@Parameter(names = {"-ddf", "--dataDuplicationFactor"},
 				description = "Describes how often the data should be duplicated and send to other nodes in the network. Determines the batch count.",
@@ -86,6 +93,16 @@ public class HitUCCApp {
 				description = "Whether to skip the header of the csv or not. Default is 'true'",
 				required = false)
 		boolean csvSkipHeader = DEFAULT_CSV_SKIP_HEADER;
+
+		@Parameter(names = {"-csv_quote", "--csvQuoteCharacter"},
+				description = "Quote character",
+				required = false)
+		char csvQuoteCharacter = CSVParser.DEFAULT_QUOTE_CHARACTER;
+
+		@Parameter(names = {"-csv_escape", "--csvEscapeCharacter"},
+				description = "Quote character",
+				required = false)
+		char csvEscapeCharacter = CSVParser.DEFAULT_ESCAPE_CHARACTER;
 
 		@Parameter(names = {"-o", "--o"},
 				description = "Output file with all accumulated UCCs",

@@ -16,7 +16,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 	public static final String PEER_HOST_ROLE = "host";
 
-	public static void start(int workers, String input, char csvDelimiter, boolean csvSkipHeader, String output, int dataDuplicationFactor, boolean nullEqualsNull, String bindHost, int bindPort) {
+	public static void start(int workers, String input, boolean greedyTaskDistribution, char csvDelimiter, boolean csvSkipHeader, char csvQuoteCharacter, char csvEscapeCharacter, String output, int dataDuplicationFactor, boolean nullEqualsNull) {
 		final Config config = ConfigFactory.parseString("akka.cluster.roles = [" + PEER_HOST_ROLE + "]\n").withFallback(ConfigFactory.load());
 		String clusterName = config.getString("clustering.cluster.name");
 		final ActorSystem system = createSystem(clusterName, config);
@@ -48,7 +48,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 			String[][] table = null;
 			try {
-				table = ReadDataTable.readTable("data/" + input, csvDelimiter, csvSkipHeader);
+				table = ReadDataTable.readTable("data/" + input, csvDelimiter, csvSkipHeader, csvQuoteCharacter, csvEscapeCharacter);
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(0);
@@ -56,7 +56,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 			int systemCount = config.getInt("clustering.systems");
 
-			dataBouncer.tell(new TaskMessage(table, table[0].length, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1)), ActorRef.noSender());
+			dataBouncer.tell(new TaskMessage(table, table[0].length, greedyTaskDistribution, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1)), ActorRef.noSender());
 		});
 	}
 }
