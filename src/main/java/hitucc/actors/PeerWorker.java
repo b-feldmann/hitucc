@@ -385,7 +385,7 @@ public class PeerWorker extends AbstractActor {
 		if (waitingWorkers.size() > 0) {
 			ActorRef randomRef = waitingWorkers.get(random.nextInt(waitingWorkers.size()));
 			randomRef.tell(new AskForMergeMessage(), this.self());
-			broadcastAndSetState(WorkerState.WAITING_FOR_MERGE);
+			broadcastAndSetState(WorkerState.NOT_READY_TO_MERGE);
 		} else {
 			broadcastAndSetState(WorkerState.READY_TO_MERGE);
 		}
@@ -393,21 +393,23 @@ public class PeerWorker extends AbstractActor {
 
 	private void handle(AskForMergeMessage message) {
 		this.log.info("Received Ask for Merge Message from {}", this.sender().path().name());
-		// TODO test whether 'selfState == WorkerState.READY_TO_MERGE' is enough of if we need 'selfState == WorkerState.WAITING_FOR_MERGE' as well
-		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.WAITING_FOR_MERGE) {
+		// TODO test whether 'selfState == WorkerState.READY_TO_MERGE' is enough or if we need 'selfState == WorkerState.WAITING_FOR_MERGE' as well
+//		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.WAITING_FOR_MERGE) {
+		if (selfState == WorkerState.READY_TO_MERGE) {
 			this.sender().tell(new AcceptMergeMessage(), this.self());
-			broadcastAndSetState(WorkerState.ACCEPTED_MERGE);
+			broadcastAndSetState(WorkerState.NOT_READY_TO_MERGE);
 		} else {
 			this.sender().tell(new DeclineMergeMessage(), this.self());
 		}
 	}
 
 	private void handle(AcceptMergeMessage message) {
-		if (selfState != WorkerState.WAITING_FOR_MERGE) {
-			this.log.info("Received Accept Merge Message but are are not waiting for an accept from {}", this.sender().path().name());
-			this.sender().tell(new DeclineMergeMessage(), this.self());
-			return;
-		}
+//		if (selfState != WorkerState.WAITING_FOR_MERGE) {
+//			this.log.info("Received Accept Merge Message but are are not waiting for an accept from {}", this.sender().path().name());
+//			this.log.info("WHAT THE FUCK");
+//			this.sender().tell(new DeclineMergeMessage(), this.self());
+//			return;
+//		}
 
 		this.log.info("Received Accept Merge Message from {}", this.sender().path().name());
 		this.sender().tell(new MergeDifferenceSetsMessage(minimalDifferenceSets), this.self());
@@ -416,14 +418,13 @@ public class PeerWorker extends AbstractActor {
 
 	private void handle(DeclineMergeMessage message) {
 		this.log.info("Received Decline Merge Message from {}", this.sender().path().name());
-		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.WAITING_FOR_MERGE || selfState == WorkerState.ACCEPTED_MERGE) {
+		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.NOT_READY_TO_MERGE) {
 			tryToMerge();
 		}
 	}
 
 	private void handle(MergeDifferenceSetsMessage message) {
 //		if(differenceSetDetector == null) createDifferenceSetDetector();
-		broadcastAndSetState(WorkerState.MERGING);
 		this.log.info("Received Merge Message from {}", this.sender().path().name());
 		this.log.info("Merge {} and {} minimal sets together", minimalDifferenceSets.length, message.differenceSets.length);
 
