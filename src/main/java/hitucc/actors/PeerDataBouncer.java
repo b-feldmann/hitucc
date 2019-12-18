@@ -204,6 +204,8 @@ public class PeerDataBouncer extends AbstractActor {
 			return;
 		}
 
+		AlgorithmTimerObject timerObject = new AlgorithmTimerObject();
+
 		workerPerSystem.add(new ArrayList<>(localWorker));
 
 		if (started) return;
@@ -239,6 +241,8 @@ public class PeerDataBouncer extends AbstractActor {
 
 		Random random = new Random();
 		int columnCount = task.getAttributes();
+
+		timerObject.setDictionaryStartTime();
 		DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
 //			DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
 		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(table.length);
@@ -255,7 +259,7 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 			batches.getBatch(random.nextInt(batchCount)).add(new EncodedRow(intRow));
 		}
-
+		timerObject.setPhaseOneStartTime();
 
 		for (int i = 0; i < batchCount; i++) {
 			this.log.info("Batch {} has {} rows", i, batches.getBatch(i).size());
@@ -293,7 +297,7 @@ public class PeerDataBouncer extends AbstractActor {
 			} else {
 				worker = remoteWorker.get(i - localWorker.size());
 			}
-			worker.tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batchCount, task.isNullEqualsNull()), this.self());
+			worker.tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batchCount, task.isNullEqualsNull(), timerObject), this.self());
 		}
 	}
 

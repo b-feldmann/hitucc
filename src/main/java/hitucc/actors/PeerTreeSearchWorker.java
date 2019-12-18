@@ -9,6 +9,7 @@ import akka.event.Logging;
 import akka.event.LoggingAdapter;
 import hitucc.actors.messages.*;
 import hitucc.behaviour.oracle.HittingSetOracle;
+import hitucc.model.AlgorithmTimerObject;
 import hitucc.model.SerializableBitSet;
 import hitucc.model.TreeTask;
 import org.json.simple.JSONObject;
@@ -40,22 +41,26 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	private List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
 	private ArrayDeque<TreeTask> backlogWorkStack = new ArrayDeque<>(maxLocalTreeDepth);
 
+	private AlgorithmTimerObject timerObject;
 	private boolean shouldOutputFile = false;
+	private ActorRef initiator;
 
 	public PeerTreeSearchWorker(ActorRef initiator, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, int workerInClusterCount) {
 		this.minimalDifferenceSets = minimalDifferenceSets;
 		this.columnCount = columnsInTable;
 		this.workerInClusterCount = workerInClusterCount;
+		this.initiator = initiator;
 
 		initiator.tell(new RegistrationMessage(), this.self());
 	}
 
-	public PeerTreeSearchWorker(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable) {
+	public PeerTreeSearchWorker(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, AlgorithmTimerObject timerObject) {
 		this.minimalDifferenceSets = minimalDifferenceSets;
 		this.columnCount = columnsInTable;
 		this.workerInClusterCount = clusterWorker.length + 1;
 		this.log.info("{}/{} Worker in cluster", 1, workerInClusterCount);
 
+		this.timerObject = timerObject;
 		this.shouldOutputFile = true;
 
 		for (ActorRef actor : clusterWorker) {
@@ -71,8 +76,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(initiator, minimalDifferenceSets, columnsInTable, workerInClusterCount));
 	}
 
-	public static Props props(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable) {
-		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(clusterWorker, minimalDifferenceSets, columnsInTable));
+	public static Props props(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, AlgorithmTimerObject timerObject) {
+		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(clusterWorker, minimalDifferenceSets, columnsInTable, timerObject));
 	}
 
 	@Override
@@ -90,6 +95,9 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		if (A.path().name().equals(B.path().name())) {
 			this.log.error("Actor String is not unique >.<");
 		}
+
+		if (A.equals(initiator)) return true;
+		if (B.equals(initiator)) return false;
 
 		return A.path().name().compareTo(B.path().name()) < 0;
 	}
@@ -133,7 +141,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			worker.tell(new RegisterClusterMessage(allWorker), this.self());
 		}
 
-		treeSearchStart = System.currentTimeMillis();
 		SerializableBitSet x = new SerializableBitSet(columnCount);
 		SerializableBitSet y = new SerializableBitSet(columnCount);
 
@@ -194,9 +201,9 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 			if (finishedActorCount == otherWorker.size()) {
 				for (ActorRef worker : otherWorker) {
-					worker.tell(new ReportAndShutdownMessage(discoveredUCCs.size()), this.self());
+					worker.tell(new ReportAndShutdownMessage(), this.self());
 				}
-				this.self().tell(new ReportAndShutdownMessage(discoveredUCCs.size()), this.self());
+				this.self().tell(new ReportAndShutdownMessage(), this.self());
 			}
 		}
 	}
@@ -234,7 +241,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //			this.log.error("Backlog is empty!");
 
 			askActorIndex = 0;
-			if(otherWorker.size() > 0) {
+			if (otherWorker.size() > 0) {
 				otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
 			} else {
 				this.self().tell(new ReportAndShutdownMessage(), this.self());
@@ -283,9 +290,10 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //		this.log.info("SET {}", DifferenceSetDetector.SerializableBitSetToString(ucc, columnCount));
 //		this.log.info("UCC: {}", toUCC(ucc));
 
-		discoveredUCCs.add(ucc);
-		for (ActorRef worker : otherWorker) {
-			worker.tell(new UCCDiscoveredMessage(ucc), this.self());
+		if (initiator != null) {
+			initiator.tell(new UCCDiscoveredMessage(ucc), this.self());
+		} else {
+			discoveredUCCs.add(ucc);
 		}
 	}
 
@@ -305,36 +313,28 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 	private void handle(UCCDiscoveredMessage message) {
 		discoveredUCCs.add(message.getUcc());
-
-		if (discoveredUCCs.size() == waitForUccCount) {
-			handle(new ReportAndShutdownMessage(waitForUccCount));
-		}
 	}
 
 	private String beautifyJson(String jsonString) {
-		return jsonString.replaceAll(",",",\n\t").replaceAll(":",": ").replaceAll("\\{","{\n\t").replaceAll("}","\n}");
+		return jsonString.replaceAll(",", ",\n\t").replaceAll(":", ": ").replaceAll("\\{", "{\n\t").replaceAll("}", "\n}");
 	}
 
 	private void handle(ReportAndShutdownMessage message) {
-		if (discoveredUCCs.size() < message.getUccCount()) {
-			waitForUccCount = message.getUccCount();
-			return;
-		}
-		if (treeSearchStart != 0) {
-			this.log.info("Tree Search Cost: {}", System.currentTimeMillis() - treeSearchStart);
-		}
-
-		this.log.info("Discovered {} UCCs", discoveredUCCs.size());
 
 		if (shouldOutputFile) {
+			timerObject.setFinishTime();
+
 
 			JSONObject obj = new JSONObject();
 			obj.put("Dataset Name", "?");
-			obj.put("Encode Data Runtime", 0);
-			obj.put("Build Difference Sets Runtime", 0);
-			obj.put("Tree Search Runtime", System.currentTimeMillis() - treeSearchStart);
-			obj.put("Algorithm Runtime", 0);
+			obj.put("Encode Data Runtime", timerObject.toSeconds(timerObject.getDictionaryRuntime()));
+			obj.put("Build Difference Sets Runtime", timerObject.toSeconds(timerObject.getPhaseOneRuntime()));
+			obj.put("Tree Search Runtime", timerObject.toSeconds(timerObject.getPhaseTwoRuntime()));
+			obj.put("Algorithm Runtime", timerObject.toSeconds(timerObject.getCompleteRuntime()));
 			obj.put("Minimal UCC Count", discoveredUCCs.size());
+
+			this.log.info("Discovered {} UCCs", discoveredUCCs.size());
+			this.log.info(beautifyJson(obj.toJSONString()));
 
 //			JSONArray results = new JSONArray();
 //			for (SerializableBitSet bitSet : discoveredUCCs) {

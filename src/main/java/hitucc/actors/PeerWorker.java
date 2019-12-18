@@ -52,6 +52,8 @@ public class PeerWorker extends AbstractActor {
 	private boolean nullEqualsNull = false;
 	private int missingBatchSplits = 0;
 
+	private AlgorithmTimerObject timerObject;
+
 	private NETWORK_ACTION currentNetworkAction = NETWORK_ACTION.LOCAL;
 
 	public static Props props() {
@@ -188,6 +190,8 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(FindDifferenceSetFromBatchMessage message) {
+		this.timerObject = message.getTimerObject();
+
 		if (selfState != WorkerState.DISCOVERING_DIFFERENCE_SETS) {
 			broadcastAndSetState(WorkerState.DISCOVERING_DIFFERENCE_SETS);
 		}
@@ -296,7 +300,7 @@ public class PeerWorker extends AbstractActor {
 				tasksA.add(task.getSetA());
 				tasksB.add(task.getSetB());
 			}
-			this.self().tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batches.count(), nullEqualsNull), this.self());
+			this.self().tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batches.count(), nullEqualsNull, timerObject), this.self());
 		}
 	}
 
@@ -340,7 +344,7 @@ public class PeerWorker extends AbstractActor {
 					this.self().tell(new WorkerStateChangedMessage(WorkerState.READY_TO_MERGE, currentNetworkAction), this.self());
 				} else {
 					this.log.info("Finished Global Merging!");
-
+					timerObject.setPhaseTwoStartTime();
 					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + remoteWorker.size()];
 					int index = 0;
 					for (ActorRef actor : localWorker) {
@@ -355,7 +359,7 @@ public class PeerWorker extends AbstractActor {
 					dataBouncer.tell(new StartTreeSearchMessage(), this.self());
 					for (ActorRef bouncer : remoteDataBouncer) bouncer.tell(new StartTreeSearchMessage(), this.self());
 
-					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
+					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount, timerObject), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
 					this.log.info("Stop peerWorker and create peerTreeSearchWorker");
 					getContext().stop(this.self());
 				}

@@ -47,7 +47,7 @@ lazy val app = (project in file("."))
 // define tasks
 TaskKey[Unit]("bridgesTask") := (run in Compile).toTask(" host --workers 4 -ddf 8 -i bridges.csv --csvDelimiter ,").value
 TaskKey[Unit]("bridgesTaskManyWorker") := (run in Compile).toTask(" host --workers 36 -ddf 8 -i bridges.csv --csvDelimiter ,").value
-TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" host -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
+TaskKey[Unit]("ncvoterTask") := (run in Compile).toTask(" host -i ncvoter_Statewide.10000r.csv -w 15 --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterTaskSingleWorker") := (run in Compile).toTask(" host --workers 1 -i ncvoter_Statewide.10000r.csv --csvDelimiter , --csvSkipHeader").value
 TaskKey[Unit]("ncvoterPeerTask") := (run in Compile).toTask(" peer --workers 4 --masterhost 127.17.0.7 --masterport 1600").value
 TaskKey[Unit]("chessTask") := (run in Compile).toTask(" host --workers 6 -i cheass.csv --csvDelimiter , --csvSkipHeader").value

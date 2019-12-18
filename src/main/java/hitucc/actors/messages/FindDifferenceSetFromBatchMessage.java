@@ -1,5 +1,6 @@
 package hitucc.actors.messages;
 
+import hitucc.model.AlgorithmTimerObject;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,5 +17,6 @@ public class FindDifferenceSetFromBatchMessage implements Serializable {
 	private List<Integer> differenceSetTasksB;
 	private int batchCount;
 	private boolean nullEqualsNull;
+	private AlgorithmTimerObject timerObject;
 }
 
