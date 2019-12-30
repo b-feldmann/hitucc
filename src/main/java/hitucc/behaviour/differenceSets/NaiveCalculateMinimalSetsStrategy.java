@@ -43,7 +43,6 @@ public class NaiveCalculateMinimalSetsStrategy implements ICalculateMinimalSetsS
 		tempList.toArray(minimalDifferenceSets);
 
 		sets.clear();
-		sets = null;
 
 		return minimalDifferenceSets;
 	}

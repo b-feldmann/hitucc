@@ -4,7 +4,7 @@ import hitucc.model.SerializableBitSet;
 import org.apache.commons.collections4.trie.PatriciaTrie;
 
 public class JavaTrieAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	PatriciaTrie differenceSets;
+	final PatriciaTrie differenceSets;
 
 	public JavaTrieAddDifferenceSetStrategy() {
 		this.differenceSets = new PatriciaTrie();

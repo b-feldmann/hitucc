@@ -12,9 +12,9 @@ public class DifferenceSetDetector {
 
 	private static final int MAX_CACHED_DIFFERENCE_SETS = 700000;
 
-	private IAddDifferenceSetStrategy addStrategy;
-	private ICalculateMinimalSetsStrategy calculateMinimalStrategy;
-	private IMergeMinimalSetsStrategy mergeSetsStrategy;
+	private final IAddDifferenceSetStrategy addStrategy;
+	private final ICalculateMinimalSetsStrategy calculateMinimalStrategy;
+	private final IMergeMinimalSetsStrategy mergeSetsStrategy;
 
 	private boolean dirty = false;
 
@@ -33,12 +33,12 @@ public class DifferenceSetDetector {
 	public static String bitSetToString(SerializableBitSet bitSet, int length) {
 		if (length == 0) return "";
 
-		String output = "";
+		StringBuilder output = new StringBuilder();
 		for (int i = 0; i < length - 1; i++) {
-			output += (bitSet.get(i) ? 1 : 0) + ", ";
+			output.append(bitSet.get(i) ? 1 : 0).append(", ");
 		}
-		output += (bitSet.get(length - 1) ? 1 : 0);
-		return output;
+		output.append(bitSet.get(length - 1) ? 1 : 0);
+		return output.toString();
 	}
 
 	protected static int testMinimalHittingSet(SerializableBitSet setA, SerializableBitSet setB) {

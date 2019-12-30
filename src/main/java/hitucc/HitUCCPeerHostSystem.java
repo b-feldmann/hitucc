@@ -7,7 +7,6 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import hitucc.actors.PeerDataBouncer;
 import hitucc.actors.PeerWorker;
-import hitucc.actors.Reaper;
 import hitucc.actors.messages.TaskMessage;
 
 import java.io.IOException;
@@ -48,7 +47,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 			String[][] table = null;
 			try {
-				table = ReadDataTable.readTable("data/" + input, csvDelimiter, csvSkipHeader, csvQuoteCharacter, csvEscapeCharacter);
+				table = ReadDataTable.readTable("data/" + input, csvDelimiter, csvSkipHeader, csvQuoteCharacter, csvEscapeCharacter, 3);
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(0);

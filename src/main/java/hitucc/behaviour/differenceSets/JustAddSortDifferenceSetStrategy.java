@@ -7,9 +7,8 @@ import java.util.Comparator;
 import java.util.List;
 
 public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	private List<SerializableBitSet> differenceSets;
+	private final List<SerializableBitSet> differenceSets;
 	private List<SerializableBitSet> uniqueSortedDifferenceSets;
-	private final int MAX_LENGTH = 1000001;
 
 	public JustAddSortDifferenceSetStrategy() {
 		this.differenceSets = new ArrayList<>();
@@ -20,6 +19,7 @@ public class JustAddSortDifferenceSetStrategy implements IAddDifferenceSetStrate
 	public SerializableBitSet addDifferenceSet(SerializableBitSet differenceSet) {
 		differenceSets.add(differenceSet);
 
+		int MAX_LENGTH = 1000001;
 		if (differenceSets.size() >= MAX_LENGTH) {
 			mergeAll();
 		}

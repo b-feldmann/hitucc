@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Random;
 
 public class BatchRoutingTable {
-	private List<ActorRef>[] routingTable;
-	private Random r;
+	private final List<ActorRef>[] routingTable;
+	private final Random r;
 
 	public BatchRoutingTable(int batchCount, ActorRef seedRef) {
 		routingTable = new List[batchCount];

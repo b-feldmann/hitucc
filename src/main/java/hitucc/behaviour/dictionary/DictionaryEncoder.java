@@ -6,9 +6,9 @@ import java.util.Collections;
 import java.util.List;
 
 public class DictionaryEncoder {
-	protected List<String> dictionary;
+	protected final List<String> dictionary;
 
-	protected String[] rawData;
+	protected final String[] rawData;
 	private int index;
 	private boolean dirty;
 

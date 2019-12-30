@@ -41,7 +41,7 @@ lazy val app = (project in file("."))
       "org.javolution" % "javolution" % "5.3.1",
       // -- Output --
       "com.googlecode.json-simple" % "json-simple" % "1.1.1"
-    ),
+    )
   )
 
 // define tasks

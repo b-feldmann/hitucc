@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Batches {
-	private List<Row>[] batches;
-	private boolean[] loading;
+	private final List<Row>[] batches;
+	private final boolean[] loading;
 
 	public Batches(int batchCount) {
 		batches = new List[batchCount];

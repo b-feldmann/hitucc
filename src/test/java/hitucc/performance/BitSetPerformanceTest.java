@@ -11,9 +11,6 @@ import java.util.Random;
 
 public class BitSetPerformanceTest {
 
-	private int bitSetCount = 10000;
-	private int bitSetLength = 20;
-
 	private SerializableBitSet createRandomBitSet(Random r, int length) {
 		SerializableBitSet bitSet = new SerializableBitSet(length);
 
@@ -54,11 +51,13 @@ public class BitSetPerformanceTest {
 
 	@Test()
 	private void testBitSet() {
+		int bitSetCount = 10000;
 		SerializableBitSet[] serializableBitSets = new SerializableBitSet[bitSetCount];
 		RoaringBitmap[] roaringBitmaps = new RoaringBitmap[bitSetCount];
 		FastBitSet[] fastBitSets = new FastBitSet[bitSetCount];
 		Random r = new Random(1337);
 
+		int bitSetLength = 20;
 		Reporter.log("Create " + bitSetCount + " bitsets with length " + bitSetLength, true);
 		long start = System.currentTimeMillis();
 		for (int i = 0; i < bitSetCount; i++) {

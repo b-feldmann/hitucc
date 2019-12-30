@@ -7,7 +7,7 @@ import java.util.Queue;
 // inspired from https://algs4.cs.princeton.edu/code/edu/princeton/cs/algs4/TrieSET.java.html
 
 public class TrieSet implements Iterable<SerializableBitSet> {
-	private int R;
+	private final int R;
 
 	private Node root;      // root of trie
 	private int n;          // number of keys in trie
@@ -222,8 +222,8 @@ public class TrieSet implements Iterable<SerializableBitSet> {
 	}
 
 	// R-way trie node
-	private class Node {
-		private Node[] next;
+	private static class Node {
+		private final Node[] next;
 		private boolean isBitSet;
 
 		public Node(int width) {

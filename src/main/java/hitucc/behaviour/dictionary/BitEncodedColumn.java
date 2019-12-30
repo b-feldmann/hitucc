@@ -2,10 +2,10 @@ package hitucc.behaviour.dictionary;
 
 public class BitEncodedColumn implements IColumn {
 
-	private int size;
-	private int bitsPerValue;
+	private final int size;
+	private final int bitsPerValue;
 
-	private int[] data;
+	private final int[] data;
 
 	public BitEncodedColumn(int size, int dictionarySize) {
 		this.bitsPerValue = dictionarySize;

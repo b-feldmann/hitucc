@@ -1,7 +1,7 @@
 package hitucc.behaviour.dictionary;
 
 public class Column implements IColumn {
-	private int[] data;
+	private final int[] data;
 
 	public Column(int size) {
 		data = new int[size];

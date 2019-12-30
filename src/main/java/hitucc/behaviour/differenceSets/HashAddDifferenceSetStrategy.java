@@ -5,7 +5,7 @@ import hitucc.model.SerializableBitSet;
 import java.util.HashSet;
 
 public class HashAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	HashSet<SerializableBitSet> differenceSets;
+	final HashSet<SerializableBitSet> differenceSets;
 
 	public HashAddDifferenceSetStrategy() {
 		this.differenceSets = new HashSet<>();

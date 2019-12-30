@@ -5,9 +5,9 @@ import akka.actor.ActorRef;
 public class TreeSearchNode {
 	private final static long ROOT_ID = -1L;
 
-	private long parentNodeId;
-	private ActorRef parent;
-	private long nodeId;
+	private final long parentNodeId;
+	private final ActorRef parent;
+	private final long nodeId;
 	private int workingChildren;
 
 	public TreeSearchNode(long parentNodeId, ActorRef parent, long nodeId) {

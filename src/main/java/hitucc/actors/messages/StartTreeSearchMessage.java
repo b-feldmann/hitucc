@@ -1,6 +1,5 @@
 package hitucc.actors.messages;
 
-import akka.actor.ActorRef;
 import hitucc.model.SerializableBitSet;
 import lombok.AllArgsConstructor;
 import lombok.Data;

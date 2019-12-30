@@ -33,14 +33,14 @@ public class PeerWorker extends AbstractActor {
 	private final Cluster cluster = Cluster.get(this.context().system());
 	private final boolean useDictionaryEncoding = true;
 
-	private Random random = new Random();
-	private List<ActorRef> remoteWorker = new ArrayList<>();
-	private List<ActorRef> remoteLeadingWorker = new ArrayList<>();
-	private List<WorkerState> remoteLeadingWorkerStates = new ArrayList<>();
-	private List<ActorRef> remoteDataBouncer = new ArrayList<>();
+	private final Random random = new Random();
+	private final List<ActorRef> remoteWorker = new ArrayList<>();
+	private final List<ActorRef> remoteLeadingWorker = new ArrayList<>();
+	private final List<WorkerState> remoteLeadingWorkerStates = new ArrayList<>();
+	private final List<ActorRef> remoteDataBouncer = new ArrayList<>();
 	private ActorRef dataBouncer = null;
-	private List<ActorRef> localWorker = new ArrayList<>();
-	private List<WorkerState> localWorkerStates = new ArrayList<>();
+	private final List<ActorRef> localWorker = new ArrayList<>();
+	private final List<WorkerState> localWorkerStates = new ArrayList<>();
 	private WorkerState selfState = WorkerState.NOT_STARTED;
 	private int columnCount = 0;
 
@@ -451,7 +451,7 @@ public class PeerWorker extends AbstractActor {
 		broadcastState(state);
 	}
 
-	public static enum NETWORK_ACTION {LOCAL, REMOTE}
+	public enum NETWORK_ACTION {LOCAL, REMOTE}
 
 	@Data
 	@AllArgsConstructor

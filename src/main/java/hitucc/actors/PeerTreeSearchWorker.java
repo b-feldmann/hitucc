@@ -24,22 +24,20 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-tree-search-worker";
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
-	private long treeSearchStart = 0;
 	private int finishedActorCount;
 	private boolean dirtyAskActorIndex;
 	private boolean waitForShutdown;
-	private int waitForUccCount = -1;
 
 	private int workerInClusterCount;
 
-	private List<ActorRef> otherWorker = new ArrayList<>();
-	private int columnCount;
+	private final List<ActorRef> otherWorker = new ArrayList<>();
+	private final int columnCount;
 	private int localTreeDepth = 0;
-	private int maxLocalTreeDepth = 1000;
+	private final int maxLocalTreeDepth = 1000;
 	private int askActorIndex = 0;
-	private SerializableBitSet[] minimalDifferenceSets;
-	private List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
-	private ArrayDeque<TreeTask> backlogWorkStack = new ArrayDeque<>(maxLocalTreeDepth);
+	private final SerializableBitSet[] minimalDifferenceSets;
+	private final List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
+	private final ArrayDeque<TreeTask> backlogWorkStack = new ArrayDeque<>(maxLocalTreeDepth);
 
 	private AlgorithmTimerObject timerObject;
 	private boolean shouldOutputFile = false;
@@ -140,6 +138,10 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		for (ActorRef worker : otherWorker) {
 			worker.tell(new RegisterClusterMessage(allWorker), this.self());
 		}
+
+//		for(SerializableBitSet differenceSet : minimalDifferenceSets) {
+//			this.log.info(toUCC(differenceSet));
+//		}
 
 		SerializableBitSet x = new SerializableBitSet(columnCount);
 		SerializableBitSet y = new SerializableBitSet(columnCount);
@@ -346,7 +348,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 				file.write(beautifyJson(obj.toJSONString()));
 				this.log.info("Successfully Copied JSON Object to File (Path: {})", file);
 				file.flush();
-				file.close();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}

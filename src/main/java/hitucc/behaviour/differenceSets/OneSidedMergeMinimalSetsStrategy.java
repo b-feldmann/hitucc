@@ -20,6 +20,6 @@ public class OneSidedMergeMinimalSetsStrategy implements IMergeMinimalSetsStrate
 
 		for(SerializableBitSet set : sortedSets) DifferenceSetDetector.insertMinimalDifferenceSets(minimalSets, set);
 
-		return minimalSets.toArray(new SerializableBitSet[minimalSets.size()]);
+		return minimalSets.toArray(new SerializableBitSet[0]);
 	}
 }

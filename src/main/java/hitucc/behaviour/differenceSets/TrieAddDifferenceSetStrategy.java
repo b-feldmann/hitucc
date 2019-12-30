@@ -4,7 +4,7 @@ import hitucc.model.SerializableBitSet;
 import hitucc.model.TrieSet;
 
 public class TrieAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	TrieSet differenceSets;
+	final TrieSet differenceSets;
 
 	public TrieAddDifferenceSetStrategy(int columns) {
 		this.differenceSets = new TrieSet(columns);

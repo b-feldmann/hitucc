@@ -1,12 +1,10 @@
 package hitucc;
 
 import akka.actor.ActorSystem;
-import akka.cluster.Cluster;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import hitucc.actors.PeerDataBouncer;
 import hitucc.actors.PeerWorker;
-import hitucc.actors.Reaper;
 
 public class HitUCCPeerSystem extends HitUCCSystem {
 

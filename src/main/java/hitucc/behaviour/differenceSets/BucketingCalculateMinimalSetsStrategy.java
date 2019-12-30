@@ -7,7 +7,7 @@ import java.util.*;
 import static hitucc.behaviour.differenceSets.DifferenceSetDetector.*;
 
 public class BucketingCalculateMinimalSetsStrategy implements ICalculateMinimalSetsStrategy {
-	private int numberOfColumns;
+	private final int numberOfColumns;
 
 	public BucketingCalculateMinimalSetsStrategy(int numberOfColumns) {
 		this.numberOfColumns = numberOfColumns;
@@ -23,9 +23,7 @@ public class BucketingCalculateMinimalSetsStrategy implements ICalculateMinimalS
 					currentBucket.add(set);
 				}
 			}
-			for(SerializableBitSet set : currentBucket) {
-				foundMinimalSets.add(set);
-			}
+			foundMinimalSets.addAll(currentBucket);
 			currentBucket.clear();
 		}
 

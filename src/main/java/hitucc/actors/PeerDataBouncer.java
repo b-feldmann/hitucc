@@ -25,15 +25,15 @@ public class PeerDataBouncer extends AbstractActor {
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
 
-	private int neededLocalWorkerCount;
+	private final int neededLocalWorkerCount;
 	private int registeredSystems;
 
-	private List<ActorRef> remoteDataBouncer = new ArrayList<>();
-	private List<ActorRef> localWorker = new ArrayList<>();
-	private List<ActorRef> remoteWorker = new ArrayList<>();
+	private final List<ActorRef> remoteDataBouncer = new ArrayList<>();
+	private final List<ActorRef> localWorker = new ArrayList<>();
+	private final List<ActorRef> remoteWorker = new ArrayList<>();
 
-	private List<ActorWaitsForBatchModel> workerWaitsForBatch = new ArrayList<>();
-	private List<RegisterSystemMessage> systemsToRegister = new ArrayList<>();
+	private final List<ActorWaitsForBatchModel> workerWaitsForBatch = new ArrayList<>();
+	private final List<RegisterSystemMessage> systemsToRegister = new ArrayList<>();
 
 	private BatchRoutingTable routingTable;
 	private EncodedBatches batches;
@@ -41,7 +41,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private TaskMessage task;
 	private boolean started;
 
-	private List<List<ActorRef>> workerPerSystem = new ArrayList<>();
+	private final List<List<ActorRef>> workerPerSystem = new ArrayList<>();
 
 	public PeerDataBouncer(Integer localWorkerCount) {
 		this.neededLocalWorkerCount = localWorkerCount;

@@ -4,8 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class EncodedBatches {
-	private List<EncodedRow>[] batches;
-	private boolean[] loading;
+	private final List<EncodedRow>[] batches;
+	private final boolean[] loading;
 
 	public EncodedBatches(int batchCount) {
 		batches = new List[batchCount];
