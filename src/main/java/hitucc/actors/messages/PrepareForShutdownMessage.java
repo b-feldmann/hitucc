@@ -7,6 +7,6 @@ import java.io.Serializable;
 
 @Data
 @AllArgsConstructor
-public class NoTreeWorkAndFinishMessage implements Serializable {
+public class PrepareForShutdownMessage implements Serializable {
 	private static final long serialVersionUID = 7344478349553349537L;
 }

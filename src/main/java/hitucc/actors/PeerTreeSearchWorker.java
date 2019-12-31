@@ -18,27 +18,25 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class PeerTreeSearchWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-tree-search-worker";
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
-	private int finishedActorCount;
-	private boolean dirtyAskActorIndex;
-	private boolean waitForShutdown;
-
-	private int workerInClusterCount;
-
 	private final List<ActorRef> otherWorker = new ArrayList<>();
 	private final int columnCount;
-	private int localTreeDepth = 0;
 	private final int maxLocalTreeDepth = 1000;
-	private int askActorIndex = 0;
 	private final SerializableBitSet[] minimalDifferenceSets;
 	private final List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
 	private final ArrayDeque<TreeTask> backlogWorkStack = new ArrayDeque<>(maxLocalTreeDepth);
-
+	private int finishedActorCount;
+	private boolean dirtyAskActorIndex;
+	private boolean waitForShutdown;
+	private int workerInClusterCount;
+	private int localTreeDepth = 0;
+	private int askActorIndex = 0;
 	private AlgorithmTimerObject timerObject;
 	private boolean shouldOutputFile = false;
 	private ActorRef initiator;
@@ -89,17 +87,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		this.cluster.unsubscribe(this.self());
 	}
 
-	private boolean priority(ActorRef A, ActorRef B) {
-		if (A.path().name().equals(B.path().name())) {
-			this.log.error("Actor String is not unique >.<");
-		}
-
-		if (A.equals(initiator)) return true;
-		if (B.equals(initiator)) return false;
-
-		return A.path().name().compareTo(B.path().name()) < 0;
-	}
-
 	@Override
 	public Receive createReceive() {
 		return receiveBuilder()
@@ -108,11 +95,10 @@ public class PeerTreeSearchWorker extends AbstractActor {
 				.match(ClusterEvent.MemberUp.class, memberUp -> {
 				})
 				.match(NeedTreeWorkMessage.class, this::handle)
-				.match(NeedTreeWorkOrFinishMessage.class, this::handle)
 				.match(TreeWorkMessage.class, this::handle)
 				.match(NoTreeWorkMessage.class, this::handle)
-				.match(NoTreeWorkAndFinishMessage.class, this::handle)
-				.match(UCCDiscoveredMessage.class, this::handle)
+				.match(FinishedTreeSearchMessage.class, this::handle)
+				.match(PrepareForShutdownMessage.class, this::handle)
 				.match(ReportAndShutdownMessage.class, this::handle)
 				.matchAny(object -> this.log.info("Meh.. Received unknown message: \"{}\" from \"{}\"", object.getClass().getName(), this.sender().path().name()))
 				.build();
@@ -123,7 +109,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		this.log.info("{}/{} Worker in cluster", otherWorker.size() + 1, workerInClusterCount);
 
 		if (otherWorker.size() + 1 == workerInClusterCount) {
-			otherWorker.sort((o1, o2) -> priority(o1, o2) ? -1 : 1);
+			this.log.info("start tree search");
 			startTreeSearch();
 		}
 	}
@@ -149,7 +135,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		backlogWorkStack.add(new TreeTask(x, y, 0, columnCount));
 
 		for (ActorRef worker : otherWorker) {
-			worker.tell(new TreeWorkMessage(new ArrayDeque<>()), this.self());
+			worker.tell(new TreeWorkMessage(null), this.self());
 		}
 
 		handleNextTask();
@@ -161,19 +147,28 @@ public class PeerTreeSearchWorker extends AbstractActor {
 				otherWorker.add(worker);
 			}
 		}
-		workerInClusterCount = otherWorker.size() + 1;
 
-		otherWorker.sort((o1, o2) -> priority(o1, o2) ? -1 : 1);
+		Collections.shuffle(otherWorker);
+		workerInClusterCount = otherWorker.size() + 1;
 	}
 
-	private void handle(NoTreeWorkAndFinishMessage message) {
-		if (askActorIndex < otherWorker.size() - 2) {
-			askActorIndex = otherWorker.size() - 2;
-			dirtyAskActorIndex = false;
-		}
+	private void handle(PrepareForShutdownMessage message) {
+		waitForShutdown = true;
+		if (initiator != null) initiator.tell(new FinishedTreeSearchMessage(discoveredUCCs), this.self());
+		this.log.info("Finished all work!");
+	}
 
-		this.log.info("No Tree Work and Finish Message");
-		handle(new NoTreeWorkMessage());
+	private void handle(FinishedTreeSearchMessage message) {
+		finishedActorCount++;
+
+		discoveredUCCs.addAll(message.getDiscoveredUCCs());
+
+		if (finishedActorCount == otherWorker.size()) {
+			for (ActorRef worker : otherWorker) {
+				worker.tell(new ReportAndShutdownMessage(), this.self());
+			}
+			this.self().tell(new ReportAndShutdownMessage(), this.self());
+		}
 	}
 
 	private void handle(NoTreeWorkMessage message) {
@@ -181,58 +176,39 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 		if (askActorIndex >= otherWorker.size()) {
 			if (dirtyAskActorIndex) {
+				dirtyAskActorIndex = false;
 				askActorIndex = 0;
 				otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
 				return;
 			}
 
 			waitForShutdown = true;
-			this.log.info("Finished all work and can't get any other");
+			if (initiator != null) initiator.tell(new FinishedTreeSearchMessage(discoveredUCCs), this.self());
+			this.log.info("Finished all work!");
 		} else {
-			if (askActorIndex == otherWorker.size() - 1) {
-				otherWorker.get(askActorIndex).tell(new NeedTreeWorkOrFinishMessage(), this.self());
-			} else otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
-		}
-	}
-
-	private void handle(NeedTreeWorkOrFinishMessage message) {
-		handle(new NeedTreeWorkMessage());
-
-		if (backlogWorkStack.isEmpty()) {
-			finishedActorCount += 1;
-
-			if (finishedActorCount == otherWorker.size()) {
-				for (ActorRef worker : otherWorker) {
-					worker.tell(new ReportAndShutdownMessage(), this.self());
-				}
-				this.self().tell(new ReportAndShutdownMessage(), this.self());
-			}
+			otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
 		}
 	}
 
 	private void handle(NeedTreeWorkMessage message) {
-//		this.log.info("Receive Need Work Message from {}", this.sender().path().name());
 		if (backlogWorkStack.isEmpty()) {
-//			this.log.info("Send no work");
-			if (waitForShutdown) this.sender().tell(new NoTreeWorkAndFinishMessage(), this.self());
+			if (waitForShutdown) this.sender().tell(new PrepareForShutdownMessage(), this.self());
 			else this.sender().tell(new NoTreeWorkMessage(), this.self());
 		} else {
-//			this.log.info("Redistribute {}/{} tasks to other worker {}", backlogWorkStack.size() == 1 ? 0 : 1, backlogWorkStack.size(), this.sender().path().name());
-			ArrayDeque<TreeTask> newStack = new ArrayDeque<>();
 			if (backlogWorkStack.size() > 1) {
-				newStack.add(backlogWorkStack.removeFirst());
+				this.sender().tell(new TreeWorkMessage(backlogWorkStack.removeFirst()), this.self());
+			} else {
+				this.sender().tell(new TreeWorkMessage(null), this.self());
 			}
-			this.sender().tell(new TreeWorkMessage(newStack), this.self());
 		}
 	}
 
 	private void handle(TreeWorkMessage message) {
-		dirtyAskActorIndex = askActorIndex != 0;
+		if (askActorIndex != 0 && !this.sender().equals(this.self())) {
+			dirtyAskActorIndex = true;
+		}
 
-		backlogWorkStack.addAll(message.getTaskQueue());
-//		if (!this.sender().equals(this.self())) {
-//			this.log.info("Received Work from {}. Queue has size of {}", this.sender().path().name(), backlogWorkStack.size());
-//		}
+		if (message.getTask() != null) backlogWorkStack.add(message.getTask());
 
 		localTreeDepth = 0;
 		handleNextTask();
@@ -240,9 +216,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 	private void handleNextTask() {
 		if (backlogWorkStack.isEmpty()) {
-//			this.log.error("Backlog is empty!");
-
-			askActorIndex = 0;
 			if (otherWorker.size() > 0) {
 				otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
 			} else {
@@ -254,7 +227,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 		localTreeDepth += 1;
 		if (localTreeDepth >= maxLocalTreeDepth) {
-			this.self().tell(new TreeWorkMessage(new ArrayDeque<>()), this.self());
+			this.self().tell(new TreeWorkMessage(null), this.self());
 			return;
 		}
 
@@ -292,11 +265,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //		this.log.info("SET {}", DifferenceSetDetector.SerializableBitSetToString(ucc, columnCount));
 //		this.log.info("UCC: {}", toUCC(ucc));
 
-		if (initiator != null) {
-			initiator.tell(new UCCDiscoveredMessage(ucc), this.self());
-		} else {
-			discoveredUCCs.add(ucc);
-		}
+		discoveredUCCs.add(ucc);
 	}
 
 	private void split(SerializableBitSet x, SerializableBitSet y, int next) {
@@ -311,10 +280,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		} else {
 			this.log.info("WHY IS THIS? ################################### This is not an error - just wanted to check if this branch can actually be reached ;)");
 		}
-	}
-
-	private void handle(UCCDiscoveredMessage message) {
-		discoveredUCCs.add(message.getUcc());
 	}
 
 	private String beautifyJson(String jsonString) {

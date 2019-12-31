@@ -14,5 +14,5 @@ import java.util.ArrayDeque;
 public class TreeWorkMessage implements Serializable {
 	private static final long serialVersionUID = 7331234322343211337L;
 
-	private ArrayDeque<TreeTask> taskQueue;
+	private TreeTask task;
 }
