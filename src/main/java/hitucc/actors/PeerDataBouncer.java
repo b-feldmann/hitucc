@@ -26,22 +26,17 @@ public class PeerDataBouncer extends AbstractActor {
 	private final Cluster cluster = Cluster.get(this.context().system());
 
 	private final int neededLocalWorkerCount;
-	private int registeredSystems;
-
 	private final List<ActorRef> remoteDataBouncer = new ArrayList<>();
 	private final List<ActorRef> localWorker = new ArrayList<>();
 	private final List<ActorRef> remoteWorker = new ArrayList<>();
-
 	private final List<ActorWaitsForBatchModel> workerWaitsForBatch = new ArrayList<>();
 	private final List<RegisterSystemMessage> systemsToRegister = new ArrayList<>();
-
+	private final List<List<ActorRef>> workerPerSystem = new ArrayList<>();
+	private int registeredSystems;
 	private BatchRoutingTable routingTable;
 	private EncodedBatches batches;
-
 	private TaskMessage task;
 	private boolean started;
-
-	private final List<List<ActorRef>> workerPerSystem = new ArrayList<>();
 
 	public PeerDataBouncer(Integer localWorkerCount) {
 		this.neededLocalWorkerCount = localWorkerCount;
@@ -204,7 +199,7 @@ public class PeerDataBouncer extends AbstractActor {
 			return;
 		}
 
-		AlgorithmTimerObject timerObject = new AlgorithmTimerObject();
+		AlgorithmTimerObject timerObject = task.getTimerObject();
 
 		workerPerSystem.add(new ArrayList<>(localWorker));
 
@@ -244,17 +239,28 @@ public class PeerDataBouncer extends AbstractActor {
 
 		timerObject.setDictionaryStartTime();
 		DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
-//			DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
 		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(table.length);
 		for (String[] row : table) {
 			for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
 				encoder[columnIndex].addValue(row[columnIndex]);
 			}
 		}
+
+		ColumnCardinality[] columnAssignment = new ColumnCardinality[columnCount];
+		for (int i = 0; i < columnAssignment.length; i++)
+			columnAssignment[i] = new ColumnCardinality(i, encoder[i].getDictionary().size());
+		if (timerObject.settingsSortColumnsInPhaseOne()) {
+			if (timerObject.settingsSortNegatively()) {
+				Arrays.sort(columnAssignment, Comparator.comparingInt(ColumnCardinality::getCardinality));
+			} else {
+				Arrays.sort(columnAssignment, (o1, o2) -> o2.getCardinality() - o1.getCardinality());
+			}
+		}
+
 		for (int rowIndex = 0; rowIndex < table.length; rowIndex++) {
 			int[] intRow = new int[columnCount];
 			for (int i = 0; i < columnCount; i++) {
-				IColumn column = encoder[i].getColumn();
+				IColumn column = encoder[columnAssignment[i].getColumnIndex()].getColumn();
 				intRow[i] = column.getValue(rowIndex);
 			}
 			batches.getBatch(random.nextInt(batchCount)).add(new EncodedRow(intRow));
@@ -478,37 +484,10 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 	}
 
-//	private void encodeBatches() {
-//		batches = new EncodedBatches(rawBatches.count());
-//		for(int i = 0; i < rawBatches.count(); i++) {
-//			encodeBatch(i);
-//		}
-//	}
-//
-//	private void encodeBatch(int batchId) {
-//		int columnCount = rawBatches.count();
-//		List<Row> rows = rawBatches.getBatch(batchId);
-//		DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
-////			DictionaryEncoder encoder[] = new BitCompressedDictionaryEncoder[columnCount];
-//		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(rows.size());
-//		for (Row row : rows) {
-//			for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-//				encoder[columnIndex].addValue(row.values[columnIndex]);
-//			}
-//		}
-//		for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-//			int[] intRow = new int[columnCount];
-//			for (int i = 0; i < columnCount; i++) {
-//				IColumn column = encoder[i].getColumn();
-//				intRow[i] = column.getValue(rowIndex);
-//			}
-//			batches.addToBatch(batchId, new EncodedRow(intRow));
-//		}
-//		log.info("{} -> {}", rawBatches.getBatch(batchId).size(), batches.getBatch(batchId).size());
-//	}
-
 	private void handle(StartTreeSearchMessage message) {
 		getContext().getSystem().actorOf(Reaper.props(), Reaper.DEFAULT_NAME);
+//		getContext().getSystem().actorOf(PeerTreeSearchWorker.props(this.sender(), message.getMinimalDifferenceSets(), message.getColumnsInTable(), message.getWorkerInCluster()), PeerTreeSearchWorker.DEFAULT_NAME + localWorker.size() + getActorSystemID());
+
 		getContext().stop(this.self());
 		this.log.info("Stop dataBouncer and create Reaper");
 	}

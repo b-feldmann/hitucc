@@ -10,16 +10,14 @@ import akka.event.LoggingAdapter;
 import hitucc.actors.messages.*;
 import hitucc.behaviour.oracle.HittingSetOracle;
 import hitucc.model.AlgorithmTimerObject;
+import hitucc.model.ColumnCardinality;
 import hitucc.model.SerializableBitSet;
 import hitucc.model.TreeTask;
 import org.json.simple.JSONObject;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class PeerTreeSearchWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-tree-search-worker";
@@ -51,7 +49,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	}
 
 	public PeerTreeSearchWorker(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, AlgorithmTimerObject timerObject) {
-		this.minimalDifferenceSets = minimalDifferenceSets;
+//		this.minimalDifferenceSets = minimalDifferenceSets;
 		this.columnCount = columnsInTable;
 		this.workerInClusterCount = clusterWorker.length + 1;
 		this.log.info("{}/{} Worker in cluster", 1, workerInClusterCount);
@@ -59,8 +57,38 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		this.timerObject = timerObject;
 		this.shouldOutputFile = true;
 
+		if (!timerObject.settingsSortColumnsInPhaseOne()) {
+			ColumnCardinality[] columnAssignment = new ColumnCardinality[columnsInTable];
+			for (int i = 0; i < columnAssignment.length; i++) columnAssignment[i] = new ColumnCardinality(i, 0);
+			for (SerializableBitSet set : minimalDifferenceSets) {
+				for(int i = 0; i < columnsInTable; i++) {
+					if(set.get(i)) columnAssignment[i].incCardinality();
+				}
+			}
+
+			if (timerObject.settingsSortNegatively()) {
+				Arrays.sort(columnAssignment, Comparator.comparingInt(ColumnCardinality::getCardinality));
+			} else {
+				Arrays.sort(columnAssignment, (o1, o2) -> o2.getCardinality() - o1.getCardinality());
+			}
+
+			SerializableBitSet[] sortedDifferenceSets = new SerializableBitSet[minimalDifferenceSets.length];
+			for (int k = 0; k < minimalDifferenceSets.length; k++) {
+				SerializableBitSet set = minimalDifferenceSets[k];
+				SerializableBitSet sortedSet = set.clone();
+				for (int i = 0; i < columnsInTable; i++) {
+					if (set.get(columnAssignment[i].getColumnIndex())) sortedSet.set(i);
+					else sortedSet.clear(i);
+				}
+				sortedDifferenceSets[k] = sortedSet;
+			}
+			this.minimalDifferenceSets = sortedDifferenceSets;
+		} else {
+			this.minimalDifferenceSets = minimalDifferenceSets;
+		}
+
 		for (ActorRef actor : clusterWorker) {
-			actor.tell(new StartTreeSearchMessage(minimalDifferenceSets, workerInClusterCount, columnsInTable), this.self());
+			actor.tell(new StartTreeSearchMessage(this.minimalDifferenceSets, workerInClusterCount, columnsInTable), this.self());
 		}
 
 		if (workerInClusterCount == 1) {
@@ -253,9 +281,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			case NOT_EXTENDABLE:
 				// Ignore
 				break;
-			case FAILED:
-				this.log.error("Oracle failed :(");
-				break;
 		}
 
 		handleNextTask();
@@ -293,7 +318,9 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 
 			JSONObject obj = new JSONObject();
-			obj.put("Dataset Name", "?");
+			obj.put("Dataset Name", timerObject.settingsDatasetName());
+			obj.put("Read Data Runtime", timerObject.toSeconds(timerObject.getTableReadRuntime()));
+			obj.put("Cluster Register Runtime", timerObject.toSeconds(timerObject.getRegisterRuntime()));
 			obj.put("Encode Data Runtime", timerObject.toSeconds(timerObject.getDictionaryRuntime()));
 			obj.put("Build Difference Sets Runtime", timerObject.toSeconds(timerObject.getPhaseOneRuntime()));
 			obj.put("Tree Search Runtime", timerObject.toSeconds(timerObject.getPhaseTwoRuntime()));
@@ -309,7 +336,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //			}
 //			obj.put("results", results);
 
-			try (FileWriter file = new FileWriter("test-results.json")) {
+			try (FileWriter file = new FileWriter(timerObject.settingsOutputFile())) {
 				file.write(beautifyJson(obj.toJSONString()));
 				this.log.info("Successfully Copied JSON Object to File (Path: {})", file);
 				file.flush();

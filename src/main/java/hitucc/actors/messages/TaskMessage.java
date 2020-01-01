@@ -1,5 +1,6 @@
 package hitucc.actors.messages;
 
+import hitucc.model.AlgorithmTimerObject;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,4 +18,5 @@ public class TaskMessage implements Serializable {
 	private int dataDuplicationFactor;
 	private boolean nullEqualsNull;
 	private int minSystems;
+	private AlgorithmTimerObject timerObject;
 }

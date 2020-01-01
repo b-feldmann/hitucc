@@ -25,7 +25,19 @@ public class HitUCCApp {
 
 			switch (jCommander.getParsedCommand()) {
 				case HitUCCPeerHostSystem.PEER_HOST_ROLE:
-					HitUCCPeerHostSystem.start(peerHostCommand.workers, peerHostCommand.input, peerHostCommand.greedyTaskDistribution, peerHostCommand.csvDelimiter.charAt(0), peerHostCommand.csvSkipHeader, peerHostCommand.csvQuoteCharacter, peerHostCommand.csvEscapeCharacter, peerHostCommand.output, peerHostCommand.dataDuplicationFactor, peerHostCommand.nullEqualsNull);
+					HitUCCPeerHostSystem.start(
+							peerHostCommand.workers,
+							peerHostCommand.input,
+							peerHostCommand.greedyTaskDistribution,
+							peerHostCommand.csvDelimiter.charAt(0),
+							peerHostCommand.csvSkipHeader,
+							peerHostCommand.csvQuoteCharacter,
+							peerHostCommand.csvEscapeCharacter,
+							peerHostCommand.output,
+							peerHostCommand.dataDuplicationFactor,
+							peerHostCommand.nullEqualsNull,
+							peerHostCommand.sortColumnsInPhaseOne,
+							peerHostCommand.sortColumnsNegatively);
 					break;
 				case HitUCCPeerSystem.PEER_ROLE:
 					HitUCCPeerSystem.start(peerCommand.workers);
@@ -47,6 +59,7 @@ public class HitUCCApp {
 
 	static class PeerCommand {
 		public static final int DEFAULT_WORKERS = Runtime.getRuntime().availableProcessors() - 1;
+		public static final String DEFAULT_OUTPUT_FILE = "test-results.json";
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
 		public static final boolean DEFAULT_GREEDY_TASK_DISTRIBUTION = false;
 		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
@@ -107,6 +120,14 @@ public class HitUCCApp {
 		@Parameter(names = {"-o", "--o"},
 				description = "Output file with all accumulated UCCs",
 				required = false)
-		String output;
+		String output = DEFAULT_OUTPUT_FILE;
+
+		@Parameter(names = {"-sortColumnsInPhaseOne"},
+				required = false)
+		boolean sortColumnsInPhaseOne = false;
+
+		@Parameter(names = {"-sortColumnsNegatively"},
+				required = false)
+		boolean sortColumnsNegatively = false;
 	}
 }

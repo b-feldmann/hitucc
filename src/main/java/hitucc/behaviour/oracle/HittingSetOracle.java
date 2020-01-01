@@ -130,5 +130,5 @@ public class HittingSetOracle {
 		return set.clone();
 	}
 
-	public enum Status {MINIMAL, EXTENDABLE, NOT_EXTENDABLE, FAILED}
+	public enum Status {MINIMAL, EXTENDABLE, NOT_EXTENDABLE}
 }

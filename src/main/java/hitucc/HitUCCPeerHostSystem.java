@@ -8,6 +8,7 @@ import com.typesafe.config.ConfigFactory;
 import hitucc.actors.PeerDataBouncer;
 import hitucc.actors.PeerWorker;
 import hitucc.actors.messages.TaskMessage;
+import hitucc.model.AlgorithmTimerObject;
 
 import java.io.IOException;
 
@@ -15,7 +16,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 	public static final String PEER_HOST_ROLE = "host";
 
-	public static void start(int workers, String input, boolean greedyTaskDistribution, char csvDelimiter, boolean csvSkipHeader, char csvQuoteCharacter, char csvEscapeCharacter, String output, int dataDuplicationFactor, boolean nullEqualsNull) {
+	public static void start(int workers, String input, boolean greedyTaskDistribution, char csvDelimiter, boolean csvSkipHeader, char csvQuoteCharacter, char csvEscapeCharacter, String output, int dataDuplicationFactor, boolean nullEqualsNull, boolean sortColumnsInPhaseOne, boolean sortNegatively) {
 		final Config config = ConfigFactory.parseString("akka.cluster.roles = [" + PEER_HOST_ROLE + "]\n").withFallback(ConfigFactory.load());
 		String clusterName = config.getString("clustering.cluster.name");
 		final ActorSystem system = createSystem(clusterName, config);
@@ -45,17 +46,22 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 				e.printStackTrace();
 			}
 
+			AlgorithmTimerObject timerObject = new AlgorithmTimerObject(sortColumnsInPhaseOne, sortNegatively, output, input);
+			timerObject.setTableReadStartTime();
+
 			String[][] table = null;
 			try {
-				table = ReadDataTable.readTable("data/" + input, csvDelimiter, csvSkipHeader, csvQuoteCharacter, csvEscapeCharacter, 3);
+				table = ReadDataTable.readTable("data/" + input, csvDelimiter, csvSkipHeader, csvQuoteCharacter, csvEscapeCharacter);
 			} catch (IOException e) {
 				e.printStackTrace();
 				System.exit(0);
 			}
 
+			timerObject.setRegisterStartTime();
+
 			int systemCount = config.getInt("clustering.systems");
 
-			dataBouncer.tell(new TaskMessage(table, table[0].length, greedyTaskDistribution, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1)), ActorRef.noSender());
+			dataBouncer.tell(new TaskMessage(table, table[0].length, greedyTaskDistribution, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1), timerObject), ActorRef.noSender());
 		});
 	}
 }

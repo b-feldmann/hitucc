@@ -345,6 +345,7 @@ public class PeerWorker extends AbstractActor {
 				} else {
 					this.log.info("Finished Global Merging!");
 					timerObject.setPhaseTwoStartTime();
+//					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + remoteWorker.size() + remoteDataBouncer.size() + 1];
 					ActorRef[] allOtherActors = new ActorRef[localWorker.size() + remoteWorker.size()];
 					int index = 0;
 					for (ActorRef actor : localWorker) {
@@ -355,6 +356,11 @@ public class PeerWorker extends AbstractActor {
 						allOtherActors[index] = actor;
 						index++;
 					}
+//					for (ActorRef actor : remoteDataBouncer) {
+//						allOtherActors[index] = actor;
+//						index++;
+//					}
+//					allOtherActors[index] = dataBouncer;
 
 					dataBouncer.tell(new StartTreeSearchMessage(), this.self());
 					for (ActorRef bouncer : remoteDataBouncer) bouncer.tell(new StartTreeSearchMessage(), this.self());
