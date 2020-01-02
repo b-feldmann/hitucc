@@ -31,7 +31,6 @@ public class PeerWorker extends AbstractActor {
 	public static final String DEFAULT_NAME = "peer-worker";
 	private final LoggingAdapter log = Logging.getLogger(this.context().system(), this);
 	private final Cluster cluster = Cluster.get(this.context().system());
-	private final boolean useDictionaryEncoding = true;
 
 	private final Random random = new Random();
 	private final List<ActorRef> remoteWorker = new ArrayList<>();
@@ -45,12 +44,10 @@ public class PeerWorker extends AbstractActor {
 	private int columnCount = 0;
 
 	private SerializableBitSet[] minimalDifferenceSets = new SerializableBitSet[0];
-	private List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
 	private DifferenceSetDetector differenceSetDetector;
 	private EncodedBatches batches;
 	private List<SingleDifferenceSetTask> tasks;
 	private boolean nullEqualsNull = false;
-	private int missingBatchSplits = 0;
 
 	private AlgorithmTimerObject timerObject;
 
@@ -58,12 +55,6 @@ public class PeerWorker extends AbstractActor {
 
 	public static Props props() {
 		return Props.create(PeerWorker.class);
-	}
-
-	public static int log2nlz(int bits) {
-		if (bits == 0)
-			return 0; // or throw exception
-		return 31 - Integer.numberOfLeadingZeros(bits);
 	}
 
 	private String getActorSystemID() {
@@ -197,7 +188,7 @@ public class PeerWorker extends AbstractActor {
 		}
 
 		if (batches == null) {
-			batches = new EncodedBatches(message.getBatchCount());
+			batches = new EncodedBatches(message.getBatchCount(), message.getBatchSizes());
 		}
 		tasks = convertListToTasks(message.getDifferenceSetTasksA(), message.getDifferenceSetTasksB());
 		nullEqualsNull = message.isNullEqualsNull();
@@ -206,32 +197,13 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(SendEncodedDataBatchMessage message) {
-		if (missingBatchSplits == 0) missingBatchSplits = message.getSplitCount();
-
 		batches.addToBatch(message.getBatchIdentifier(), message.getBatch());
 
-		missingBatchSplits -= 1;
-
-		if (missingBatchSplits == 0) {
+		if (batches.getBatch(message.getBatchIdentifier()).size() == message.getCompleteRowCount()) {
 //			this.log.info("Received {} splits for data batch {}, {} rows", message.getSplitCount(), message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()).size());
 			tryToFindDifferenceSets();
 		} else {
 			dataBouncer.tell(new RequestDataBatchMessage(message.getBatchIdentifier(), message.getCurrentSplit()), this.self());
-		}
-	}
-
-
-	private void preloadNextTask() {
-		if(tasks.size() > 1) {
-			SingleDifferenceSetTask nextTask = tasks.get(1);
-			if (!batches.hasBatch(nextTask.getSetA())) {
-				this.log.info("Pre-Request Data Batch with id {}", nextTask.getSetA());
-				dataBouncer.tell(new PreRequestDataBatchMessage(nextTask.getSetA()), this.self());
-			}
-			if (nextTask.getSetA() != nextTask.getSetB() && !batches.hasBatch(nextTask.getSetB())) {
-				this.log.info("Pre-Request Data Batch with id {}", nextTask.getSetB());
-				dataBouncer.tell(new PreRequestDataBatchMessage(nextTask.getSetB()), this.self());
-			}
 		}
 	}
 
@@ -258,6 +230,20 @@ public class PeerWorker extends AbstractActor {
 		findDifferenceSets();
 	}
 
+	private void preloadNextTask() {
+		if(tasks.size() > 1) {
+			SingleDifferenceSetTask nextTask = tasks.get(1);
+			if (!batches.hasBatch(nextTask.getSetA())) {
+				this.log.info("Pre-Request Data Batch with id {}", nextTask.getSetA());
+				dataBouncer.tell(new PreRequestDataBatchMessage(nextTask.getSetA()), this.self());
+			}
+			if (nextTask.getSetA() != nextTask.getSetB() && !batches.hasBatch(nextTask.getSetB())) {
+				this.log.info("Pre-Request Data Batch with id {}", nextTask.getSetB());
+				dataBouncer.tell(new PreRequestDataBatchMessage(nextTask.getSetB()), this.self());
+			}
+		}
+	}
+
 	private void findDifferenceSets() {
 		if (tasks.size() == 0) {
 			broadcastAndSetState(WorkerState.DONE_MERGING);
@@ -270,7 +256,7 @@ public class PeerWorker extends AbstractActor {
 
 		if (currentTask.getSetA() == currentTask.getSetB()) {
 			List<EncodedRow> batch = batches.getBatch(currentTask.getSetA());
-			this.log.info("Batch {}: {} rows", currentTask.getSetA(), batch.size());
+			// this.log.info("Batch {}: {} rows", currentTask.getSetA(), batch.size());
 			for (int indexA = 0; indexA < batch.size(); indexA++) {
 				for (int indexB = indexA + 1; indexB < batch.size(); indexB++) {
 					differenceSetDetector.addDifferenceSet(batch.get(indexA).values, batch.get(indexB).values, nullEqualsNull);
@@ -279,7 +265,7 @@ public class PeerWorker extends AbstractActor {
 		} else {
 			List<EncodedRow> batchA = batches.getBatch(currentTask.getSetA());
 			List<EncodedRow> batchB = batches.getBatch(currentTask.getSetB());
-			this.log.info("BatchA {}: {} rows, BatchB {}: {} rows", currentTask.getSetA(), batchA.size(), currentTask.getSetB(), batchB.size());
+			// this.log.info("BatchA {}: {} rows, BatchB {}: {} rows", currentTask.getSetA(), batchA.size(), currentTask.getSetB(), batchB.size());
 			for (EncodedRow rowA : batchA) {
 				for (EncodedRow rowB : batchB) {
 					differenceSetDetector.addDifferenceSet(rowA.values, rowB.values, nullEqualsNull);
@@ -300,7 +286,7 @@ public class PeerWorker extends AbstractActor {
 				tasksA.add(task.getSetA());
 				tasksB.add(task.getSetB());
 			}
-			this.self().tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batches.count(), nullEqualsNull, timerObject), this.self());
+			this.self().tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batches.count(), nullEqualsNull, timerObject.clone(), batches.getBatchSizes()), this.self());
 		}
 	}
 
@@ -331,7 +317,7 @@ public class PeerWorker extends AbstractActor {
 						finishedMerge = false;
 					}
 				} else {
-					this.log.info("remote worker state: {}", colleaguesState);
+					// this.log.info("remote worker state: {}", colleaguesState);
 					if (colleaguesState != WorkerState.DONE_MERGING) {
 						finishedMerge = false;
 					}
@@ -365,7 +351,7 @@ public class PeerWorker extends AbstractActor {
 					dataBouncer.tell(new StartTreeSearchMessage(), this.self());
 					for (ActorRef bouncer : remoteDataBouncer) bouncer.tell(new StartTreeSearchMessage(), this.self());
 
-					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount, timerObject), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
+					getContext().getSystem().actorOf(PeerTreeSearchWorker.props(allOtherActors, minimalDifferenceSets, columnCount, timerObject.clone()), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
 					this.log.info("Stop peerWorker and create peerTreeSearchWorker");
 					getContext().stop(this.self());
 				}
@@ -402,7 +388,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(AskForMergeMessage message) {
-		this.log.info("Received Ask for Merge Message from {}", this.sender().path().name());
+		// this.log.info("Received Ask for Merge Message from {}", this.sender().path().name());
 		// TODO test whether 'selfState == WorkerState.READY_TO_MERGE' is enough or if we need 'selfState == WorkerState.WAITING_FOR_MERGE' as well
 //		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.WAITING_FOR_MERGE) {
 		if (selfState == WorkerState.READY_TO_MERGE) {
@@ -421,22 +407,20 @@ public class PeerWorker extends AbstractActor {
 //			return;
 //		}
 
-		this.log.info("Received Accept Merge Message from {}", this.sender().path().name());
+		// this.log.info("Received Accept Merge Message from {}", this.sender().path().name());
 		this.sender().tell(new MergeDifferenceSetsMessage(minimalDifferenceSets), this.self());
 		broadcastAndSetState(WorkerState.DONE_MERGING);
 	}
 
 	private void handle(DeclineMergeMessage message) {
-		this.log.info("Received Decline Merge Message from {}", this.sender().path().name());
+		// this.log.info("Received Decline Merge Message from {}", this.sender().path().name());
 		if (selfState == WorkerState.READY_TO_MERGE || selfState == WorkerState.NOT_READY_TO_MERGE) {
 			tryToMerge();
 		}
 	}
 
 	private void handle(MergeDifferenceSetsMessage message) {
-//		if(differenceSetDetector == null) createDifferenceSetDetector();
-		this.log.info("Received Merge Message from {}", this.sender().path().name());
-		this.log.info("Merge {} and {} minimal sets together", minimalDifferenceSets.length, message.differenceSets.length);
+		this.log.info("Merge {} and {} minimal sets together (with actor {})", minimalDifferenceSets.length, message.differenceSets.length, this.sender().path().name());
 
 		minimalDifferenceSets = differenceSetDetector.mergeMinimalDifferenceSets(minimalDifferenceSets, message.differenceSets);
 		this.log.info("Merged into {} difference sets", minimalDifferenceSets.length);

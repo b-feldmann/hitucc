@@ -16,5 +16,5 @@ public class SendEncodedDataBatchMessage implements Serializable {
 	private int batchIdentifier;
 	private List<EncodedRow> batch;
 	private int currentSplit;
-	private int splitCount;
+	private int completeRowCount;
 }

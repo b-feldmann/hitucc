@@ -58,7 +58,7 @@ public class HitUCCApp {
 	}
 
 	static class PeerCommand {
-		public static final int DEFAULT_WORKERS = Runtime.getRuntime().availableProcessors() - 1;
+		public static final int DEFAULT_WORKERS = Runtime.getRuntime().availableProcessors() - 2;
 		public static final String DEFAULT_OUTPUT_FILE = "test-results.json";
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
 		public static final boolean DEFAULT_GREEDY_TASK_DISTRIBUTION = false;

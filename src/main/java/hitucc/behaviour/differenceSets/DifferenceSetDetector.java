@@ -124,11 +124,11 @@ public class DifferenceSetDetector {
 		return addStrategy.addDifferenceSet(bitSet);
 	}
 
-	public SerializableBitSet addDifferenceSet(int[] rowA, int[] rowB, boolean nullEqualsNull) {
+	public SerializableBitSet addDifferenceSet(final int[] rowA, final int[] rowB, final boolean nullEqualsNull) {
 		return addDifferenceSet(rowA, rowB);
 	}
 
-	public SerializableBitSet addDifferenceSet(int[] rowA, int[] rowB) {
+	public SerializableBitSet addDifferenceSet(final int[] rowA, final int[] rowB) {
 		dirty = true;
 
 		SerializableBitSet bitSet = new SerializableBitSet(rowA.length);
@@ -172,7 +172,6 @@ public class DifferenceSetDetector {
 
 			minimalDifferenceSets = calculateMinimalStrategy.calculateMinimalDifferenceSets(this, addStrategy.getIterable(), minimalDifferenceSets);
 			addStrategy.clearState();
-			return minimalDifferenceSets;
 		}
 
 		return minimalDifferenceSets;

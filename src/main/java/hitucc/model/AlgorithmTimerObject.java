@@ -25,6 +25,17 @@ public class AlgorithmTimerObject implements Serializable {
 		this.datasetName = datasetName;
 	}
 
+	public AlgorithmTimerObject clone() {
+		AlgorithmTimerObject timerObject = new AlgorithmTimerObject(sortColumnsInPhaseOne, sortNegatively, outputFile, datasetName);
+		timerObject.tableReadStartTime = tableReadStartTime;
+		timerObject.registerStartTime = registerStartTime;
+		timerObject.dictionaryStartTime = dictionaryStartTime;
+		timerObject.phaseOneStartTime = phaseOneStartTime;
+		timerObject.phaseTwoStartTime = phaseTwoStartTime;
+		timerObject.finishTime = finishTime;
+		return timerObject;
+	}
+
 	private long now() {
 		return System.currentTimeMillis();
 	}

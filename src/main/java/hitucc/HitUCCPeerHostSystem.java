@@ -61,7 +61,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 			int systemCount = config.getInt("clustering.systems");
 
-			dataBouncer.tell(new TaskMessage(table, table[0].length, greedyTaskDistribution, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1), timerObject), ActorRef.noSender());
+			dataBouncer.tell(new TaskMessage(table, table[0].length, greedyTaskDistribution, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1), timerObject.clone()), ActorRef.noSender());
 		});
 	}
 }

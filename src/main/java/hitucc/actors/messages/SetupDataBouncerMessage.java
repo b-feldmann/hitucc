@@ -12,5 +12,6 @@ import java.io.Serializable;
 public class SetupDataBouncerMessage implements Serializable {
 	private static final long serialVersionUID = 5818929133748493046L;
 	private int batchCount;
+	private int[] batchSizes;
 }
 

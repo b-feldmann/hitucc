@@ -101,7 +101,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	}
 
 	public static Props props(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, AlgorithmTimerObject timerObject) {
-		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(clusterWorker, minimalDifferenceSets, columnsInTable, timerObject));
+		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(clusterWorker, minimalDifferenceSets, columnsInTable, timerObject.clone()));
 	}
 
 	@Override

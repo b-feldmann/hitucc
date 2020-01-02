@@ -18,5 +18,6 @@ public class FindDifferenceSetFromBatchMessage implements Serializable {
 	private int batchCount;
 	private boolean nullEqualsNull;
 	private AlgorithmTimerObject timerObject;
+	private int[] batchSizes;
 }
 

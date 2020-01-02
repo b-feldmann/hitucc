@@ -228,11 +228,7 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 
 		routingTable = new BatchRoutingTable(batchCount, this.self());
-		for (ActorRef remoteDataBouncer : remoteDataBouncer) {
-			remoteDataBouncer.tell(new SetupDataBouncerMessage(batchCount), this.self());
-		}
-
-		batches = new EncodedBatches(batchCount);
+		batches = new EncodedBatches(batchCount, new int[batchCount]);
 
 		Random random = new Random();
 		int columnCount = task.getAttributes();
@@ -265,6 +261,12 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 			batches.getBatch(random.nextInt(batchCount)).add(new EncodedRow(intRow));
 		}
+
+		batches.updateBatchSizes();
+		for (ActorRef remoteDataBouncer : remoteDataBouncer) {
+			remoteDataBouncer.tell(new SetupDataBouncerMessage(batchCount, batches.getBatchSizes()), this.self());
+		}
+
 		timerObject.setPhaseOneStartTime();
 
 		for (int i = 0; i < batchCount; i++) {
@@ -303,7 +305,7 @@ public class PeerDataBouncer extends AbstractActor {
 			} else {
 				worker = remoteWorker.get(i - localWorker.size());
 			}
-			worker.tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batchCount, task.isNullEqualsNull(), timerObject), this.self());
+			worker.tell(new FindDifferenceSetFromBatchMessage(tasksA, tasksB, batchCount, task.isNullEqualsNull(), timerObject.clone(), batches.getBatchSizes()), this.self());
 		}
 	}
 
@@ -402,7 +404,7 @@ public class PeerDataBouncer extends AbstractActor {
 	private void handle(SetupDataBouncerMessage message) {
 		this.log.info("Setup Data Bouncer[{} batches]. Can now request and send batches.", message.getBatchCount());
 		this.log.info("Connected to {} local worker, {} remote worker and {} remote data-bouncer", localWorker.size(), remoteWorker.size(), remoteDataBouncer.size());
-		batches = new EncodedBatches(message.getBatchCount());
+		batches = new EncodedBatches(message.getBatchCount(), message.getBatchSizes());
 		routingTable = new BatchRoutingTable(message.getBatchCount(), this.sender());
 
 		for (ActorWaitsForBatchModel waitFor : workerWaitsForBatch) {
@@ -424,7 +426,7 @@ public class PeerDataBouncer extends AbstractActor {
 				split.add(batch.get(k));
 			}
 			this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), split,
-					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, (int) Math.ceil(1f * batch.size() / MAX_ROWS_PER_SPLIT)), this.self());
+					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, batch.size()), this.self());
 			if (((i + 1) / MAX_ROWS_PER_SPLIT) + 1 == split.size()) {
 				this.log.info("Send {} splits to remote data bouncer[{} rows] BatchID: {}", ((i + 1) / MAX_ROWS_PER_SPLIT) + 1, split.size(), message.getBatchIdentifier());
 			}
@@ -437,7 +439,8 @@ public class PeerDataBouncer extends AbstractActor {
 
 			if (batches.hasBatch(message.getBatchIdentifier())) {
 				List<EncodedRow> batch = batches.getBatch(message.getBatchIdentifier());
-				this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), batch, 1, 1), this.self());
+				List<EncodedRow> clonedBatch = new ArrayList<>(batch);
+				this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), clonedBatch, 1, clonedBatch.size()), this.self());
 			} else {
 				// load data from other dataBouncer first
 				workerWaitsForBatch.add(new ActorWaitsForBatchModel(this.sender(), message.getBatchIdentifier()));
@@ -462,18 +465,19 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void handle(SendEncodedDataBatchMessage message) {
 		batches.addToBatch(message.getBatchIdentifier(), message.getBatch());
-		if (message.getCurrentSplit() == message.getSplitCount()) {
+		if (batches.getBatch(message.getBatchIdentifier()).size() == message.getCompleteRowCount()) {
 			// notify every other dataBouncer that I have the full batch
 			for (ActorRef actorRef : remoteDataBouncer) {
 				actorRef.tell(new AddBatchRouteMessage(message.getBatchIdentifier()), this.sender());
 			}
 
-			this.log.info("Received {} splits for data batch {}, {} rows", message.getSplitCount(), message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()).size());
+			this.log.info("Received all splits for data batch {}, {} rows", message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()).size());
 			batches.isBatchLoadingFinished(message.getBatchIdentifier());
 			for (int i = 0; i < workerWaitsForBatch.size(); i++) {
 				ActorWaitsForBatchModel waitFor = workerWaitsForBatch.get(i);
 				if (waitFor.getBatchIdentifier() == message.getBatchIdentifier()) {
-					waitFor.getActor().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()), 1, 1), this.self());
+					List<EncodedRow> clonedBatch = new ArrayList<>(batches.getBatch(message.getBatchIdentifier()));
+					waitFor.getActor().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), clonedBatch, 1, clonedBatch.size()), this.self());
 					workerWaitsForBatch.remove(i);
 					i -= 1;
 				}
