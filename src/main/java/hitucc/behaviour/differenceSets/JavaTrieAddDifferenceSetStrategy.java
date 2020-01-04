@@ -35,4 +35,9 @@ public class JavaTrieAddDifferenceSetStrategy implements IAddDifferenceSetStrate
 	public void clearState() {
 		differenceSets.clear();
 	}
+
+	@Override
+	public void setNeededCapacity(int capacity) {
+
+	}
 }

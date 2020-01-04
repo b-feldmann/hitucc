@@ -12,4 +12,6 @@ public interface IAddDifferenceSetStrategy {
 	void removeDuplicates();
 
 	void clearState();
+
+	void setNeededCapacity(int capacity);
 }

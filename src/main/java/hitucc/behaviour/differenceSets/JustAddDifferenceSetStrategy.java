@@ -5,7 +5,7 @@ import hitucc.model.SerializableBitSet;
 import java.util.ArrayList;
 
 public class JustAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
-	final ArrayList<SerializableBitSet> differenceSets;
+	ArrayList<SerializableBitSet> differenceSets;
 
 	public JustAddDifferenceSetStrategy() {
 		this.differenceSets = new ArrayList<>();
@@ -35,5 +35,10 @@ public class JustAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
 	@Override
 	public void clearState() {
 		differenceSets.clear();
+	}
+
+	@Override
+	public void setNeededCapacity(int capacity) {
+		differenceSets = new ArrayList<>(capacity);
 	}
 }

@@ -272,6 +272,8 @@ public class PeerWorker extends AbstractActor {
 
 		if (currentTask.getSetA() == currentTask.getSetB()) {
 			List<EncodedRow> batch = batches.getBatch(currentTask.getSetA());
+			differenceSetDetector.setNeededCapacity(batch.size() * batch.size());
+
 			// this.log.info("Batch {}: {} rows", currentTask.getSetA(), batch.size());
 			for (int indexA = 0; indexA < batch.size(); indexA++) {
 				for (int indexB = indexA + 1; indexB < batch.size(); indexB++) {
@@ -281,6 +283,8 @@ public class PeerWorker extends AbstractActor {
 		} else {
 			List<EncodedRow> batchA = batches.getBatch(currentTask.getSetA());
 			List<EncodedRow> batchB = batches.getBatch(currentTask.getSetB());
+
+			differenceSetDetector.setNeededCapacity(batchA.size() * batchB.size());
 			// this.log.info("BatchA {}: {} rows, BatchB {}: {} rows", currentTask.getSetA(), batchA.size(), currentTask.getSetB(), batchB.size());
 			for (EncodedRow rowA : batchA) {
 				for (EncodedRow rowB : batchB) {

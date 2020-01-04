@@ -36,4 +36,9 @@ public class HashAddDifferenceSetStrategy implements IAddDifferenceSetStrategy {
 	public void clearState() {
 		differenceSets.clear();
 	}
+
+	@Override
+	public void setNeededCapacity(int capacity) {
+
+	}
 }

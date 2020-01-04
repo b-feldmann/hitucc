@@ -194,6 +194,11 @@ public class DifferenceSetDetector {
 		setDirty();
 	}
 
+	public void setNeededCapacity(int capacity) {
+		if(capacity < 0) capacity = 1000;
+		addStrategy.setNeededCapacity(capacity);
+	}
+
 	/**
 	 * The next time all minimal difference sets are requested they are recalculated
 	 */
