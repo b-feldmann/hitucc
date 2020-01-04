@@ -9,5 +9,7 @@ public interface IAddDifferenceSetStrategy {
 
 	Iterable<SerializableBitSet> getIterable();
 
+	void removeDuplicates();
+
 	void clearState();
 }

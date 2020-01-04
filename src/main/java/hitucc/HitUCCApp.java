@@ -1,10 +1,9 @@
 package hitucc;
 
-import com.beust.jcommander.JCommander;
-import com.beust.jcommander.Parameter;
-import com.beust.jcommander.ParameterException;
-import com.beust.jcommander.Parameters;
+import com.beust.jcommander.*;
 import com.opencsv.CSVParser;
+
+import java.util.Arrays;
 
 public class HitUCCApp {
 	public static void main(String[] args) {
@@ -37,10 +36,13 @@ public class HitUCCApp {
 							peerHostCommand.dataDuplicationFactor,
 							peerHostCommand.nullEqualsNull,
 							peerHostCommand.sortColumnsInPhaseOne,
-							peerHostCommand.sortColumnsNegatively);
+							peerHostCommand.sortColumnsNegatively,
+							peerHostCommand.maxLocalTreeDepth,
+							peerHostCommand.createDiffSets,
+							peerHostCommand.minimizeDiffSets);
 					break;
 				case HitUCCPeerSystem.PEER_ROLE:
-					HitUCCPeerSystem.start(peerCommand.workers);
+					HitUCCPeerSystem.start(peerCommand.workers,peerCommand.createDiffSets, peerCommand.minimizeDiffSets);
 					break;
 				default:
 					throw new AssertionError();
@@ -57,16 +59,95 @@ public class HitUCCApp {
 		}
 	}
 
+	public enum CreateDiffSetsStrategy {
+		HASH,
+		LIST,
+		TRIE,
+		PATRICIA,
+		NAIVE;
+
+		// converter that will be used later
+		public static CreateDiffSetsStrategy fromString(String code) {
+
+			for(CreateDiffSetsStrategy output : CreateDiffSetsStrategy.values()) {
+				if(output.toString().equalsIgnoreCase(code)) {
+					return output;
+				}
+			}
+
+			return null;
+		}
+	}
+
+	public static class CreateDiffSetsStrategyConverter implements IStringConverter<CreateDiffSetsStrategy> {
+
+		@Override
+		public CreateDiffSetsStrategy convert(String value) {
+			CreateDiffSetsStrategy convertedValue = CreateDiffSetsStrategy.fromString(value);
+
+			if(convertedValue == null) {
+				throw new ParameterException("Value " + value + "can not be converted to CreateDiffSetsStrategy. " +
+						"Available values are: " + Arrays.toString(CreateDiffSetsStrategy.values()));
+			}
+			return convertedValue;
+		}
+	}
+
+	public static class MinimizeDiffSetsStrategyConverter implements IStringConverter<MinimizeDiffSetsStrategy> {
+
+		@Override
+		public MinimizeDiffSetsStrategy convert(String value) {
+			MinimizeDiffSetsStrategy convertedValue = MinimizeDiffSetsStrategy.fromString(value);
+
+			if(convertedValue == null) {
+				throw new ParameterException("Value " + value + "can not be converted to MinimizeDiffSetsStrategy. " +
+						"Available values are: " + Arrays.toString(MinimizeDiffSetsStrategy.values()));
+			}
+			return convertedValue;
+		}
+	}
+
+	public enum MinimizeDiffSetsStrategy {
+		BUCKETING,
+		SORT,
+		NAIVE;
+
+		// converter that will be used later
+		public static MinimizeDiffSetsStrategy fromString(String code) {
+
+			for(MinimizeDiffSetsStrategy output : MinimizeDiffSetsStrategy.values()) {
+				if(output.toString().equalsIgnoreCase(code)) {
+					return output;
+				}
+			}
+
+			return null;
+		}
+	}
+
 	static class PeerCommand {
 		public static final int DEFAULT_WORKERS = Runtime.getRuntime().availableProcessors() - 2;
 		public static final String DEFAULT_OUTPUT_FILE = "test-results.json";
 		public static final int DEFAULT_DATA_DUPLICATION_FACTOR = 0;
+		public static final int DEFAULT_MAX_LOCAL_TREE_DEPTH = 1000;
 		public static final boolean DEFAULT_GREEDY_TASK_DISTRIBUTION = false;
 		public static final boolean DEFAULT_NULL_EQUALS_EQUALS = false;
 		public static final boolean DEFAULT_CSV_SKIP_HEADER = false;
 
 		@Parameter(names = {"-w", "--workers"}, description = "number of workers to start locally", required = false)
 		int workers = DEFAULT_WORKERS;
+
+		@Parameter(names = {"--createDiffSets"},
+				description = "Create Difference Sets Strategy",
+				required = false,
+				converter = CreateDiffSetsStrategyConverter.class)
+		CreateDiffSetsStrategy createDiffSets = CreateDiffSetsStrategy.HASH;
+
+		@Parameter(names = {"--minimizeDiffSets"},
+				description = "Minimize Difference Sets Strategy",
+				required = false,
+				converter = MinimizeDiffSetsStrategyConverter.class)
+		MinimizeDiffSetsStrategy minimizeDiffSets = MinimizeDiffSetsStrategy.BUCKETING;
 
 //		@Parameter(names = {"-bh", "--bind-host"}, description = "this machine's host name or IP to bind against")
 //		String bindHost = "0.0.0.0";
@@ -129,5 +210,9 @@ public class HitUCCApp {
 		@Parameter(names = {"-sortColumnsNegatively"},
 				required = false)
 		boolean sortColumnsNegatively = false;
+
+		@Parameter(names = {"-maxLocalTreeDepth"},
+				required = false)
+		int maxLocalTreeDepth = DEFAULT_MAX_LOCAL_TREE_DEPTH;
 	}
 }

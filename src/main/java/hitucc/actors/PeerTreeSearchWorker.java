@@ -25,10 +25,10 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	private final Cluster cluster = Cluster.get(this.context().system());
 	private final List<ActorRef> otherWorker = new ArrayList<>();
 	private final int columnCount;
-	private final int maxLocalTreeDepth = 1000;
+	private final int maxLocalTreeDepth;
 	private final SerializableBitSet[] minimalDifferenceSets;
 	private final List<SerializableBitSet> discoveredUCCs = new ArrayList<>();
-	private final ArrayDeque<TreeTask> backlogWorkStack = new ArrayDeque<>(maxLocalTreeDepth);
+	private final ArrayDeque<TreeTask> backlogWorkStack;
 	private int finishedActorCount;
 	private boolean dirtyAskActorIndex;
 	private boolean waitForShutdown;
@@ -39,12 +39,13 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	private boolean shouldOutputFile = false;
 	private ActorRef initiator;
 
-	public PeerTreeSearchWorker(ActorRef initiator, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, int workerInClusterCount) {
+	public PeerTreeSearchWorker(ActorRef initiator, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, int workerInClusterCount, int maxLocalTreeDepth) {
 		this.minimalDifferenceSets = minimalDifferenceSets;
 		this.columnCount = columnsInTable;
 		this.workerInClusterCount = workerInClusterCount;
 		this.initiator = initiator;
-
+		this.maxLocalTreeDepth = maxLocalTreeDepth;
+		this.backlogWorkStack = new ArrayDeque<>(this.maxLocalTreeDepth);
 		initiator.tell(new RegistrationMessage(), this.self());
 	}
 
@@ -57,12 +58,14 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		this.timerObject = timerObject;
 		this.shouldOutputFile = true;
 
+		this.maxLocalTreeDepth = timerObject.settingsMaxTreeDepth();
+		this.backlogWorkStack = new ArrayDeque<>(this.maxLocalTreeDepth);
 		if (!timerObject.settingsSortColumnsInPhaseOne()) {
 			ColumnCardinality[] columnAssignment = new ColumnCardinality[columnsInTable];
 			for (int i = 0; i < columnAssignment.length; i++) columnAssignment[i] = new ColumnCardinality(i, 0);
 			for (SerializableBitSet set : minimalDifferenceSets) {
-				for(int i = 0; i < columnsInTable; i++) {
-					if(set.get(i)) columnAssignment[i].incCardinality();
+				for (int i = 0; i < columnsInTable; i++) {
+					if (set.get(i)) columnAssignment[i].incCardinality();
 				}
 			}
 
@@ -88,7 +91,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		}
 
 		for (ActorRef actor : clusterWorker) {
-			actor.tell(new StartTreeSearchMessage(this.minimalDifferenceSets, workerInClusterCount, columnsInTable), this.self());
+			actor.tell(new StartTreeSearchMessage(this.minimalDifferenceSets, workerInClusterCount, columnsInTable, timerObject.settingsMaxTreeDepth()), this.self());
 		}
 
 		if (workerInClusterCount == 1) {
@@ -96,8 +99,8 @@ public class PeerTreeSearchWorker extends AbstractActor {
 		}
 	}
 
-	public static Props props(ActorRef initiator, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, int workerInClusterCount) {
-		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(initiator, minimalDifferenceSets, columnsInTable, workerInClusterCount));
+	public static Props props(ActorRef initiator, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, int workerInClusterCount, int maxLocalTreeDepth) {
+		return Props.create(PeerTreeSearchWorker.class, () -> new PeerTreeSearchWorker(initiator, minimalDifferenceSets, columnsInTable, workerInClusterCount, maxLocalTreeDepth));
 	}
 
 	public static Props props(ActorRef[] clusterWorker, SerializableBitSet[] minimalDifferenceSets, int columnsInTable, AlgorithmTimerObject timerObject) {
@@ -326,6 +329,13 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			obj.put("Tree Search Runtime", timerObject.toSeconds(timerObject.getPhaseTwoRuntime()));
 			obj.put("Algorithm Runtime", timerObject.toSeconds(timerObject.getCompleteRuntime()));
 			obj.put("Minimal UCC Count", discoveredUCCs.size());
+
+			if (timerObject.getPhaseOneCreateRuntime() != 0) {
+				obj.put("Create Difference Sets Runtime", timerObject.toSeconds(timerObject.getPhaseOneCreateRuntime()));
+			}
+			if (timerObject.getPhaseOneMinimizeRuntime() != 0) {
+				obj.put("Minimize Difference Sets Runtime", timerObject.toSeconds(timerObject.getPhaseOneMinimizeRuntime()));
+			}
 
 			this.log.info("Discovered {} UCCs", discoveredUCCs.size());
 			this.log.info(beautifyJson(obj.toJSONString()));

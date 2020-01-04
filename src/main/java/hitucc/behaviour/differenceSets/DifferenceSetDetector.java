@@ -158,6 +158,10 @@ public class DifferenceSetDetector {
 		return minimalDifferenceSets == null ? 0 : minimalDifferenceSets.length;
 	}
 
+	public void removeDuplicates() {
+		addStrategy.removeDuplicates();
+	}
+
 	/**
 	 * Return all minimal difference Sets
 	 */

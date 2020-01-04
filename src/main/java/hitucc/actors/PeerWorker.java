@@ -11,13 +11,11 @@ import akka.cluster.ClusterEvent.MemberUp;
 import akka.cluster.Member;
 import akka.event.Logging;
 import akka.event.LoggingAdapter;
+import hitucc.HitUCCApp;
 import hitucc.HitUCCPeerHostSystem;
 import hitucc.HitUCCPeerSystem;
 import hitucc.actors.messages.*;
-import hitucc.behaviour.differenceSets.BucketingCalculateMinimalSetsStrategy;
-import hitucc.behaviour.differenceSets.DifferenceSetDetector;
-import hitucc.behaviour.differenceSets.HashAddDifferenceSetStrategy;
-import hitucc.behaviour.differenceSets.TwoSidedMergeMinimalSetsStrategy;
+import hitucc.behaviour.differenceSets.*;
 import hitucc.model.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -53,8 +51,16 @@ public class PeerWorker extends AbstractActor {
 
 	private NETWORK_ACTION currentNetworkAction = NETWORK_ACTION.LOCAL;
 
-	public static Props props() {
-		return Props.create(PeerWorker.class);
+	private HitUCCApp.CreateDiffSetsStrategy createDiffSetsStrategy;
+	private HitUCCApp.MinimizeDiffSetsStrategy minimizeDiffSetsStrategy;
+
+	public PeerWorker(HitUCCApp.CreateDiffSetsStrategy createDiffSetsStrategy, HitUCCApp.MinimizeDiffSetsStrategy minimizeDiffSetsStrategy) {
+		this.createDiffSetsStrategy = createDiffSetsStrategy;
+		this.minimizeDiffSetsStrategy = minimizeDiffSetsStrategy;
+	}
+
+	public static Props props(HitUCCApp.CreateDiffSetsStrategy createDiffSetsStrategy, HitUCCApp.MinimizeDiffSetsStrategy minimizeDiffSetsStrategy) {
+		return Props.create(PeerWorker.class, () -> new PeerWorker(createDiffSetsStrategy, minimizeDiffSetsStrategy));
 	}
 
 	private String getActorSystemID() {
@@ -66,7 +72,17 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void createDifferenceSetDetector() {
-		differenceSetDetector = new DifferenceSetDetector(new HashAddDifferenceSetStrategy(), new BucketingCalculateMinimalSetsStrategy(columnCount), new TwoSidedMergeMinimalSetsStrategy());
+		IAddDifferenceSetStrategy addDifferenceSetStrategy = new HashAddDifferenceSetStrategy();
+		if(createDiffSetsStrategy == HitUCCApp.CreateDiffSetsStrategy.LIST) addDifferenceSetStrategy = new AddSortUniqueDifferenceSetStrategy();
+		if(createDiffSetsStrategy == HitUCCApp.CreateDiffSetsStrategy.NAIVE) addDifferenceSetStrategy = new JustAddDifferenceSetStrategy();
+		if(createDiffSetsStrategy == HitUCCApp.CreateDiffSetsStrategy.PATRICIA) addDifferenceSetStrategy = new JavaTrieAddDifferenceSetStrategy();
+		if(createDiffSetsStrategy == HitUCCApp.CreateDiffSetsStrategy.TRIE) addDifferenceSetStrategy = new TrieAddDifferenceSetStrategy(columnCount);
+
+		ICalculateMinimalSetsStrategy calculateMinimalSetsStrategy = new BucketingCalculateMinimalSetsStrategy(columnCount);
+		if(minimizeDiffSetsStrategy == HitUCCApp.MinimizeDiffSetsStrategy.SORT) calculateMinimalSetsStrategy = new SortingCalculateMinimalSetsStrategy();
+		if(minimizeDiffSetsStrategy == HitUCCApp.MinimizeDiffSetsStrategy.NAIVE) calculateMinimalSetsStrategy = new NaiveCalculateMinimalSetsStrategy();
+
+		differenceSetDetector = new DifferenceSetDetector(addDifferenceSetStrategy, calculateMinimalSetsStrategy, new TwoSidedMergeMinimalSetsStrategy());
 	}
 
 	@Override
@@ -273,6 +289,9 @@ public class PeerWorker extends AbstractActor {
 			}
 		}
 
+		differenceSetDetector.removeDuplicates();
+		timerObject.setMinimizeStartTime();
+
 		minimalDifferenceSets = differenceSetDetector.getMinimalDifferenceSets();
 		this.log.info("Calculated {} minimal difference sets | Batch[{}|{}]", minimalDifferenceSets.length, currentTask.getSetA(), currentTask.getSetB());
 
@@ -360,7 +379,7 @@ public class PeerWorker extends AbstractActor {
 	}
 
 	private void handle(StartTreeSearchMessage message) {
-		getContext().getSystem().actorOf(PeerTreeSearchWorker.props(this.sender(), message.getMinimalDifferenceSets(), message.getColumnsInTable(), message.getWorkerInCluster()), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
+		getContext().getSystem().actorOf(PeerTreeSearchWorker.props(this.sender(), message.getMinimalDifferenceSets(), message.getColumnsInTable(), message.getWorkerInCluster(), message.getMaxTreeDepth()), PeerTreeSearchWorker.DEFAULT_NAME + getWorkerIndexInSystem() + getActorSystemID());
 		this.log.info("Stopping myself..");
 		getContext().stop(this.self());
 	}

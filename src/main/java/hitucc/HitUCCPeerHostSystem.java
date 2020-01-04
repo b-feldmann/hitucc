@@ -16,7 +16,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 	public static final String PEER_HOST_ROLE = "host";
 
-	public static void start(int workers, String input, boolean greedyTaskDistribution, char csvDelimiter, boolean csvSkipHeader, char csvQuoteCharacter, char csvEscapeCharacter, String output, int dataDuplicationFactor, boolean nullEqualsNull, boolean sortColumnsInPhaseOne, boolean sortNegatively) {
+	public static void start(int workers, String input, boolean greedyTaskDistribution, char csvDelimiter, boolean csvSkipHeader, char csvQuoteCharacter, char csvEscapeCharacter, String output, int dataDuplicationFactor, boolean nullEqualsNull, boolean sortColumnsInPhaseOne, boolean sortNegatively, int maxTreeDepth, HitUCCApp.CreateDiffSetsStrategy createDiffSetsStrategy, HitUCCApp.MinimizeDiffSetsStrategy minimizeDiffSetsStrategy) {
 		final Config config = ConfigFactory.parseString("akka.cluster.roles = [" + PEER_HOST_ROLE + "]\n").withFallback(ConfigFactory.load());
 		String clusterName = config.getString("clustering.cluster.name");
 		final ActorSystem system = createSystem(clusterName, config);
@@ -35,7 +35,7 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 
 //		system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME + ":" + port);
 		for (int i = 0; i < workers; i++) {
-			system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
+			system.actorOf(PeerWorker.props(createDiffSetsStrategy, minimizeDiffSetsStrategy), PeerWorker.DEFAULT_NAME + i + ":" + port);
 		}
 		final ActorRef dataBouncer = system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
 
@@ -46,7 +46,8 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 				e.printStackTrace();
 			}
 
-			AlgorithmTimerObject timerObject = new AlgorithmTimerObject(sortColumnsInPhaseOne, sortNegatively, output, input);
+			int systemCount = config.getInt("clustering.systems");
+			AlgorithmTimerObject timerObject = new AlgorithmTimerObject(sortColumnsInPhaseOne, sortNegatively, output, input, maxTreeDepth, workers == 1 && Math.max(systemCount, 1) == 1 && dataDuplicationFactor == 1);
 			timerObject.setTableReadStartTime();
 
 			String[][] table = null;
@@ -58,8 +59,6 @@ public class HitUCCPeerHostSystem extends HitUCCSystem {
 			}
 
 			timerObject.setRegisterStartTime();
-
-			int systemCount = config.getInt("clustering.systems");
 
 			dataBouncer.tell(new TaskMessage(table, table[0].length, greedyTaskDistribution, dataDuplicationFactor, nullEqualsNull, Math.max(systemCount, 1), timerObject.clone()), ActorRef.noSender());
 		});

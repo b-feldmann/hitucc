@@ -27,6 +27,11 @@ public class JavaTrieAddDifferenceSetStrategy implements IAddDifferenceSetStrate
 	}
 
 	@Override
+	public void removeDuplicates() {
+
+	}
+
+	@Override
 	public void clearState() {
 		differenceSets.clear();
 	}

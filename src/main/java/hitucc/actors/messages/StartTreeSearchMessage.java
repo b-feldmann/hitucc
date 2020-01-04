@@ -15,4 +15,5 @@ public class StartTreeSearchMessage implements Serializable {
 	private SerializableBitSet[] minimalDifferenceSets;
 	private int workerInCluster;
 	private int columnsInTable;
+	private int maxTreeDepth;
 }

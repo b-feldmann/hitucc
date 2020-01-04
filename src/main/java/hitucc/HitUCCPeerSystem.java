@@ -10,7 +10,7 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 	public static final String PEER_ROLE = "peer";
 
-	public static void start(int workers) {
+	public static void start(int workers, HitUCCApp.CreateDiffSetsStrategy createDiffSetsStrategy, HitUCCApp.MinimizeDiffSetsStrategy diffSetsStrategy) {
 		final Config config = ConfigFactory.parseString("akka.cluster.roles = [" + PEER_ROLE + "]\n").withFallback(ConfigFactory.load());
 		String clusterName = config.getString("clustering.cluster.name");
 		final ActorSystem system = createSystem(clusterName, config);
@@ -26,7 +26,7 @@ public class HitUCCPeerSystem extends HitUCCSystem {
 
 //		system.actorOf(Reaper.props(), Reaper.DEFAULT_NAME + ":" + port);
 		for (int i = 0; i < workers; i++) {
-			system.actorOf(PeerWorker.props(), PeerWorker.DEFAULT_NAME + i + ":" + port);
+			system.actorOf(PeerWorker.props(createDiffSetsStrategy, diffSetsStrategy), PeerWorker.DEFAULT_NAME + i + ":" + port);
 		}
 		system.actorOf(PeerDataBouncer.props(workers), PeerDataBouncer.DEFAULT_NAME + ":" + port);
 	}
