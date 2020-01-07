@@ -53,7 +53,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 //		this.minimalDifferenceSets = minimalDifferenceSets;
 		this.columnCount = columnsInTable;
 		this.workerInClusterCount = clusterWorker.length + 1;
-		this.log.info("{}/{} Worker in cluster", 1, workerInClusterCount);
+//		this.log.info("{}/{} Worker in cluster", 1, workerInClusterCount);
 
 		this.timerObject = timerObject;
 		this.shouldOutputFile = true;
@@ -137,7 +137,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 	private void handle(RegistrationMessage message) {
 		otherWorker.add(this.sender());
-		this.log.info("{}/{} Worker in cluster", otherWorker.size() + 1, workerInClusterCount);
+//		this.log.info("{}/{} Worker in cluster", otherWorker.size() + 1, workerInClusterCount);
 
 		if (otherWorker.size() + 1 == workerInClusterCount) {
 			this.log.info("start tree search");
@@ -186,7 +186,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 	private void handle(PrepareForShutdownMessage message) {
 		waitForShutdown = true;
 		if (initiator != null) initiator.tell(new FinishedTreeSearchMessage(discoveredUCCs), this.self());
-		this.log.info("Finished all work!");
+//		this.log.info("Finished all work!");
 	}
 
 	private void handle(FinishedTreeSearchMessage message) {
@@ -215,7 +215,7 @@ public class PeerTreeSearchWorker extends AbstractActor {
 
 			waitForShutdown = true;
 			if (initiator != null) initiator.tell(new FinishedTreeSearchMessage(discoveredUCCs), this.self());
-			this.log.info("Finished all work!");
+//			this.log.info("Finished all work!");
 		} else {
 			otherWorker.get(askActorIndex).tell(new NeedTreeWorkMessage(), this.self());
 		}
@@ -305,8 +305,6 @@ public class PeerTreeSearchWorker extends AbstractActor {
 			SerializableBitSet yNew = copySerializableBitSet(y, columnCount);
 			yNew.set(next);
 			backlogWorkStack.add(new TreeTask(x, yNew, next + 1, columnCount));
-		} else {
-			this.log.info("WHY IS THIS? ################################### This is not an error - just wanted to check if this branch can actually be reached ;)");
 		}
 	}
 

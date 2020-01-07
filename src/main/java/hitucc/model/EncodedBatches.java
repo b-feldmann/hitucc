@@ -4,38 +4,52 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class EncodedBatches {
-	private final List<EncodedRow>[] batches;
+	private final EncodedRow[][] batches;
 	private final boolean[] loading;
 	private final int[] batchSizes;
+	private final int[] insertIndex;
 
 	public EncodedBatches(int batchCount, final int[] batchSizes) {
-		batches = new List[batchCount];
+		batches = new EncodedRow[batchCount][];
 		loading = new boolean[batchCount];
+		insertIndex = new int[batchCount];
 		for (int i = 0; i < batchCount; i++) {
-			batches[i] = new ArrayList<>();
+			batches[i] = new EncodedRow[batchSizes[i]];
+			insertIndex[i] = 0;
 		}
 		this.batchSizes = batchSizes;
 	}
 
-	public void setBatch(int identifier, List<EncodedRow> batch) {
+	public void setBatch(int identifier, EncodedRow[] batch) {
 		batches[identifier] = batch;
+		insertIndex[identifier] = batch.length;
 	}
 
 	public void addToBatch(int identifier, EncodedRow row) {
-		batches[identifier].add(row);
+		batches[identifier][insertIndex[identifier]] = row;
+		insertIndex[identifier] += 1;
 	}
 
 	public void addToBatch(int identifier, List<EncodedRow> batch) {
-		for (EncodedRow row : batch) {
-			batches[identifier].add(row);
+		for(int k = 0; k < batch.size(); k++) {
+			batches[identifier][insertIndex[identifier] + k] = batch.get(k);
 		}
+		insertIndex[identifier] += batch.size();
+	}
+
+	public void addToBatch(int identifier, EncodedRow[] batch) {
+//		for(int k = 0; k < batch.length; k++) {
+//			batches[identifier][insertIndex[identifier] + k] = batch[k];
+//		}
+		System.arraycopy(batch, 0, batches[identifier], insertIndex[identifier], batch.length);
+		insertIndex[identifier] += batch.length;
 	}
 
 	public boolean hasBatch(int identifier) {
-		return batches[identifier].size() == batchSizes[identifier];
+		return insertIndex[identifier] == batchSizes[identifier];
 	}
 
-	public List<EncodedRow> getBatch(int identifier) {
+	public EncodedRow[] getBatch(int identifier) {
 		return batches[identifier];
 	}
 
@@ -65,7 +79,7 @@ public class EncodedBatches {
 
 	public void updateBatchSizes() {
 		for(int i = 0; i < batchSizes.length; i++) {
-			batchSizes[i] = batches[i].size();
+			batchSizes[i] = batches[i].length;
 		}
 	}
 }

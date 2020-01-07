@@ -8,15 +8,18 @@ import java.util.List;
 public class DictionaryEncoder {
 	protected final List<String> dictionary;
 
+	private final boolean nullEqualsNull;
+
 	protected final String[] rawData;
 	private int index;
 	private boolean dirty;
 
 	protected IColumn column;
 
-	public DictionaryEncoder(int size) {
+	public DictionaryEncoder(int size, boolean nullEqualsNull) {
 		rawData = new String[size];
 		dictionary = new ArrayList<>();
+		this.nullEqualsNull = nullEqualsNull;
 	}
 
 	public void addValue(String value) {
@@ -46,9 +49,15 @@ public class DictionaryEncoder {
 
 		column = new Column(rawData.length);
 
+		int nullValueCount = 0;
 		for(int i = 0;  i < rawData.length; i++) {
-			int position = Collections.binarySearch(dictionary, rawData[i]);
-			column.setValue(i, position);
+			if(!nullEqualsNull && rawData[i].isEmpty()) {
+				column.setValue(i, dictionary.size() + nullValueCount + 1);
+				nullValueCount += 1;
+			} else {
+				int position = Collections.binarySearch(dictionary, rawData[i]);
+				column.setValue(i, position);
+			}
 		}
 	}
 

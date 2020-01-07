@@ -190,12 +190,12 @@ public class PeerDataBouncer extends AbstractActor {
 		this.task = task;
 
 		if (localWorker.size() + 1 < neededLocalWorkerCount) {
-			this.log.info("{} local worker missing before the algorithm can be started", neededLocalWorkerCount - localWorker.size() - 1);
+//			this.log.info("{} local worker missing before the algorithm can be started", neededLocalWorkerCount - localWorker.size() - 1);
 			return;
 		}
 
 		if (registeredSystems + 1 < task.getMinSystems()) {
-			this.log.info("{} systems missing before the algorithm can be started", task.getMinSystems() - registeredSystems - 1);
+//			this.log.info("{} systems missing before the algorithm can be started", task.getMinSystems() - registeredSystems - 1);
 			return;
 		}
 
@@ -213,29 +213,25 @@ public class PeerDataBouncer extends AbstractActor {
 		if (batchCount < 1) {
 			this.log.info("{} Worker connected to the cluster", workerInCluster());
 			batchCount = 0;
-			int triangleCount = 0;
-			while (triangleCount < workerInCluster() + 1) {
-				batchCount++;
-				triangleCount = 0;
-				for (int i = 0; i < batchCount; i++) {
-					triangleCount += batchCount - i;
-				}
+			float val = 0.5f;
+			while (val != (int) val) {
+				batchCount += 1;
+				val = (batchCount * batchCount + batchCount) / 2f / workerInCluster();
 			}
-			this.log.info("The Data Duplication Factor is set to auto: Factor is set to {}. Use {} work packages.", batchCount, triangleCount);
+			this.log.info("The Data Duplication Factor is set to auto: Factor is set to {}. Use {} work packages.", batchCount, (batchCount * batchCount + batchCount) / 2f);
 		}
 		if (batchCount == 1) {
 			this.log.info("The Data Duplication Factor is set to 1. The program therefore cannot distribute the algorithm. This is not that bad, but it slows down the execution time significantly.");
 		}
 
 		routingTable = new BatchRoutingTable(batchCount, this.self());
-		batches = new EncodedBatches(batchCount, new int[batchCount]);
 
 		Random random = new Random();
 		int columnCount = task.getAttributes();
 
 		timerObject.setDictionaryStartTime();
 		DictionaryEncoder[] encoder = new DictionaryEncoder[columnCount];
-		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(table.length);
+		for (int i = 0; i < columnCount; i++) encoder[i] = new DictionaryEncoder(table.length, task.isNullEqualsNull());
 		for (String[] row : table) {
 			for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
 				encoder[columnIndex].addValue(row[columnIndex]);
@@ -253,13 +249,23 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 		}
 
+		List<EncodedRow>[] listBatches = new List[batchCount];
+		for (int i = 0; i < batchCount; i++) {
+			listBatches[i] = new ArrayList<>();
+		}
 		for (int rowIndex = 0; rowIndex < table.length; rowIndex++) {
 			int[] intRow = new int[columnCount];
 			for (int i = 0; i < columnCount; i++) {
 				IColumn column = encoder[columnAssignment[i].getColumnIndex()].getColumn();
 				intRow[i] = column.getValue(rowIndex);
 			}
-			batches.getBatch(random.nextInt(batchCount)).add(new EncodedRow(intRow));
+			listBatches[random.nextInt(batchCount)].add(new EncodedRow(intRow));
+		}
+		int[] batchSizes = new int[batchCount];
+		for (int i = 0; i < batchCount; i++) batchSizes[i] = listBatches[i].size();
+		batches = new EncodedBatches(batchCount, batchSizes);
+		for (int i = 0; i < batchCount; i++) {
+			batches.addToBatch(i, listBatches[i]);
 		}
 
 		batches.updateBatchSizes();
@@ -267,31 +273,28 @@ public class PeerDataBouncer extends AbstractActor {
 			remoteDataBouncer.tell(new SetupDataBouncerMessage(batchCount, batches.getBatchSizes()), this.self());
 		}
 
-		timerObject.setPhaseOneStartTime();
-
-		for (int i = 0; i < batchCount; i++) {
-			this.log.info("Batch {} has {} rows", i, batches.getBatch(i).size());
-		}
 		List<SingleDifferenceSetTask>[] tasksPerWorker = new List[workerInCluster()];
 		for (int i = 0; i < workerInCluster(); i += 1) {
 			tasksPerWorker[i] = new ArrayList<>();
 		}
 
-		this.log.info("Calculate Task Distribution");
-		int workerIndex = 0;
-		for (int i = 0; i < batchCount; i += 1) {
-			for (int k = i; k < batchCount; k += 1) {
-				tasksPerWorker[workerIndex % workerInCluster()].add(new SingleDifferenceSetTask(i, k));
-				workerIndex += 1;
+		if (task.isGreedyTaskDistribution() && registeredSystems > 0) {
+			this.log.info("Greedy Tasks Distribution");
+
+			greedyTaskDistribution(tasksPerWorker, batchCount);
+		} else {
+			this.log.info("Round-Robin Task Distribution");
+			int workerIndex = 0;
+			for (int i = 0; i < batchCount; i += 1) {
+				for (int k = i; k < batchCount; k += 1) {
+					tasksPerWorker[workerIndex % workerInCluster()].add(new SingleDifferenceSetTask(i, k));
+					workerIndex += 1;
+				}
 			}
 		}
 
-		if (task.isGreedyTaskDistribution() && registeredSystems > 0) {
-			this.log.info("Redistribute Tasks");
-			redistributeTasks(tasksPerWorker);
-		}
-
 		this.log.info("Start Main Algorithm");
+		timerObject.setPhaseOneStartTime();
 		for (int i = 0; i < workerInCluster(); i += 1) {
 			List<Integer> tasksA = new ArrayList<>();
 			List<Integer> tasksB = new ArrayList<>();
@@ -309,86 +312,74 @@ public class PeerDataBouncer extends AbstractActor {
 		}
 	}
 
-	private boolean isValidSwap(List<SingleDifferenceSetTask>[] tasksPerWorker, int[] actorSystemIndexToWorkerIndex, int systemIndexA, int taskListA, int listAIndex, int systemIndexB, int taskListB, int listBIndex) {
-		Set<Integer> scoreListA = new HashSet<>();
-		if (systemIndexA != registeredSystems) {
-			for (int i = actorSystemIndexToWorkerIndex[systemIndexA]; i < actorSystemIndexToWorkerIndex[systemIndexA] + workerPerSystem.get(systemIndexA).size(); i++) {
-				List<SingleDifferenceSetTask> currentTaskList = tasksPerWorker[i];
-				for (int k = 0; k < currentTaskList.size(); k++) {
-					if (i == taskListA && k == listAIndex) continue;
-					scoreListA.add(currentTaskList.get(k).getSetA());
-					scoreListA.add(currentTaskList.get(k).getSetB());
-				}
+	private void greedyTaskDistribution(List<SingleDifferenceSetTask>[] tasksPerWorker, int batchCount) {
+		Random r = new Random();
+		List<SingleDifferenceSetTask> taskList = new ArrayList<>();
+		for (int i = 0; i < batchCount; i += 1) {
+			for (int k = i; k < batchCount; k += 1) {
+				taskList.add(new SingleDifferenceSetTask(i, k));
 			}
 		}
+		List<SingleDifferenceSetTask>[] tasksPerActorSystem = new List[remoteDataBouncer.size() + 1];
+		Set<Integer>[] scoreListPerActorSystem = new Set[remoteDataBouncer.size() + 1];
+		for (int i = 0; i < remoteDataBouncer.size() + 1; i += 1) {
+			tasksPerActorSystem[i] = new ArrayList<>();
+			scoreListPerActorSystem[i] = new HashSet<>();
+		}
+		int taskCount = taskList.size();
+		int actorSystemIndex = 1;
+		while (taskList.size() > taskCount / tasksPerActorSystem.length) {
+			List<SingleDifferenceSetTask> actorSystemList = tasksPerActorSystem[actorSystemIndex];
+			Set<Integer> scoreList = scoreListPerActorSystem[actorSystemIndex];
 
-		Set<Integer> scoreListB = new HashSet<>();
-		if (systemIndexA != registeredSystems) {
-			for (int i = actorSystemIndexToWorkerIndex[systemIndexB]; i < actorSystemIndexToWorkerIndex[systemIndexB] + workerPerSystem.get(systemIndexB).size(); i++) {
-				List<SingleDifferenceSetTask> currentTaskList = tasksPerWorker[i];
-				for (int k = 0; k < currentTaskList.size(); k++) {
-					if (i == taskListB && k == listBIndex) continue;
-					scoreListB.add(currentTaskList.get(k).getSetA());
-					scoreListB.add(currentTaskList.get(k).getSetB());
+			SingleDifferenceSetTask task = taskList.get(r.nextInt(taskList.size()));
+			int score = (scoreList.contains(task.getSetA()) ? 0 : 1) + (scoreList.contains(task.getSetB()) ? 0 : 1);
+			for (int i = 0; i < taskList.size(); i++) {
+				SingleDifferenceSetTask testTask = taskList.get(i);
+				int testScore = (scoreList.contains(testTask.getSetA()) ? 0 : 1) + (scoreList.contains(testTask.getSetB()) ? 0 : 1);
+				if (testScore < score) {
+					task = testTask;
+					score = testScore;
 				}
 			}
+
+			taskList.remove(task);
+			actorSystemList.add(task);
+			scoreList.add(task.getSetA());
+			scoreList.add(task.getSetB());
+
+			actorSystemIndex += 1;
+			if (actorSystemIndex == tasksPerActorSystem.length) actorSystemIndex = 1;
 		}
 
-		int aScore = scoreListA.size();
-		int aScoreAfterSwap = scoreListA.size();
-		if (systemIndexA != registeredSystems) {
-			if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) aScore += 1;
-			if (!scoreListA.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) aScore += 1;
-			if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) aScoreAfterSwap += 1;
-			if (!scoreListA.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) aScoreAfterSwap += 1;
+		for (SingleDifferenceSetTask task : taskList) {
+			tasksPerActorSystem[0].add(task);
 		}
 
-		int bScore = scoreListB.size();
-		int bScoreAfterSwap = scoreListA.size();
-		if (systemIndexB != registeredSystems) {
-			if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetA())) bScore += 1;
-			if (!scoreListB.contains(tasksPerWorker[taskListB].get(listBIndex).getSetB())) bScore += 1;
-			if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetA())) bScoreAfterSwap += 1;
-			if (!scoreListB.contains(tasksPerWorker[taskListA].get(listAIndex).getSetB())) bScoreAfterSwap += 1;
-		}
-		return aScore + bScore > aScoreAfterSwap + bScoreAfterSwap;
-	}
+		for (int i = 0; i < tasksPerActorSystem.length; i++) {
+			if (i == 0) {
+				HashSet<Integer> scoreList = new HashSet<>();
+				for (SingleDifferenceSetTask task : tasksPerActorSystem[i]) {
+					scoreList.add(task.getSetA());
+					scoreList.add(task.getSetB());
+				}
+				this.log.info("ActorSystem {} has {} Task and {} different data batches", i, tasksPerActorSystem[i].size(), scoreList.size());
+			} else {
+				this.log.info("ActorSystem {} has {} Task and {} different data batches", i, tasksPerActorSystem[i].size(), scoreListPerActorSystem[i].size());
+			}
 
-	private void redistributeTasks(List<SingleDifferenceSetTask>[] tasksPerWorker) {
-		if (registeredSystems == 0) return;
-
-		int swaps = remoteWorker.size() + localWorker.size();
-
-		Random random = new Random();
-
-		int[] actorSystemIndexToWorkerIndex = new int[registeredSystems + 1];
-		actorSystemIndexToWorkerIndex[0] = 0;
-		for (int i = 1; i < actorSystemIndexToWorkerIndex.length; i++) {
-			actorSystemIndexToWorkerIndex[i] = actorSystemIndexToWorkerIndex[i - 1] + workerPerSystem.get(i - 1).size();
 		}
 
-		int[] actorSystemIndices = new int[registeredSystems + 1];
-		for (int i = 0; i < actorSystemIndices.length; i++) {
-			actorSystemIndices[i] = i;
-		}
+		int workerPerSystem = (remoteWorker.size() + localWorker.size()) / (remoteDataBouncer.size() + 1);
+		for (int k = 0; k < tasksPerActorSystem.length; k++) {
+			List<SingleDifferenceSetTask> actorSystemTasks = tasksPerActorSystem[k];
 
-		for (int i = 0; i < swaps; i++) {
-			int firstSystemIndex = actorSystemIndices[random.nextInt(actorSystemIndices.length)];
-			actorSystemIndices[firstSystemIndex] = actorSystemIndices[actorSystemIndices.length - 1];
-			int secondSystemIndex = actorSystemIndices[random.nextInt(actorSystemIndices.length - 1)];
-			actorSystemIndices[firstSystemIndex] = firstSystemIndex;
+			int workerIndex = 0;
+			while (!actorSystemTasks.isEmpty()) {
+				tasksPerWorker[k * workerPerSystem + workerIndex].add(actorSystemTasks.remove(0));
 
-			int firstSystemWorkerIndex = random.nextInt(workerPerSystem.get(firstSystemIndex).size()) + actorSystemIndexToWorkerIndex[firstSystemIndex];
-			int secondSystemWorkerIndex = random.nextInt(workerPerSystem.get(secondSystemIndex).size()) + actorSystemIndexToWorkerIndex[secondSystemIndex];
-
-			int firstWorkerTaskListIndex = random.nextInt(tasksPerWorker[firstSystemWorkerIndex].size());
-			int secondWorkerTaskListIndex = random.nextInt(tasksPerWorker[secondSystemWorkerIndex].size());
-
-			boolean validSwap = isValidSwap(tasksPerWorker, actorSystemIndexToWorkerIndex, firstSystemIndex, firstSystemWorkerIndex, firstWorkerTaskListIndex, secondSystemIndex, secondSystemWorkerIndex, secondWorkerTaskListIndex);
-			if (validSwap) {
-				SingleDifferenceSetTask tmp = tasksPerWorker[firstSystemWorkerIndex].get(firstWorkerTaskListIndex);
-				tasksPerWorker[firstSystemWorkerIndex].set(firstWorkerTaskListIndex, tasksPerWorker[secondSystemWorkerIndex].get(secondWorkerTaskListIndex));
-				tasksPerWorker[secondSystemWorkerIndex].set(secondWorkerTaskListIndex, tmp);
+				workerIndex += 1;
+				workerIndex %= workerPerSystem;
 			}
 		}
 	}
@@ -402,8 +393,8 @@ public class PeerDataBouncer extends AbstractActor {
 	}
 
 	private void handle(SetupDataBouncerMessage message) {
-		this.log.info("Setup Data Bouncer[{} batches]. Can now request and send batches.", message.getBatchCount());
-		this.log.info("Connected to {} local worker, {} remote worker and {} remote data-bouncer", localWorker.size(), remoteWorker.size(), remoteDataBouncer.size());
+//		this.log.info("Setup Data Bouncer[{} batches]. Can now request and send batches.", message.getBatchCount());
+//		this.log.info("Connected to {} local worker, {} remote worker and {} remote data-bouncer", localWorker.size(), remoteWorker.size(), remoteDataBouncer.size());
 		batches = new EncodedBatches(message.getBatchCount(), message.getBatchSizes());
 		routingTable = new BatchRoutingTable(message.getBatchCount(), this.sender());
 
@@ -418,18 +409,24 @@ public class PeerDataBouncer extends AbstractActor {
 	private void handle(RequestDataBatchMessage message) {
 		if (this.sender().path().name().startsWith(PeerDataBouncer.DEFAULT_NAME)) {
 			// other data bouncer wants data
-			List<EncodedRow> batch = batches.getBatch(message.getBatchIdentifier());
+			EncodedRow[] batch = batches.getBatch(message.getBatchIdentifier());
 			int MAX_ROWS_PER_SPLIT = 100;
 			int i = MAX_ROWS_PER_SPLIT * message.getNextSplit();
-			List<EncodedRow> split = new ArrayList<>();
-			for (int k = i; k - i < MAX_ROWS_PER_SPLIT && k < batch.size(); k++) {
-				split.add(batch.get(k));
+
+//			List<EncodedRow> split = new ArrayList<>();
+//			for (int k = i; k - i < MAX_ROWS_PER_SPLIT && k < batch.length; k++) {
+//				split.add(batch[k]);
+//			}
+
+			EncodedRow[] split = new EncodedRow[Math.min(MAX_ROWS_PER_SPLIT, batch.length - i)];
+			int o = 0;
+			for (int k = i; k - i < MAX_ROWS_PER_SPLIT && k < batch.length; k++) {
+				split[o] = batch[k];
+				o += 1;
 			}
+
 			this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), split,
-					((i + 1) / MAX_ROWS_PER_SPLIT) + 1, batch.size()), this.self());
-			if (((i + 1) / MAX_ROWS_PER_SPLIT) + 1 == split.size()) {
-				this.log.info("Send {} splits to remote data bouncer[{} rows] BatchID: {}", ((i + 1) / MAX_ROWS_PER_SPLIT) + 1, split.size(), message.getBatchIdentifier());
-			}
+					((i + 1) / MAX_ROWS_PER_SPLIT) + 1), this.self());
 		} else {
 			// local worker wants data
 			if (batches == null) {
@@ -438,9 +435,9 @@ public class PeerDataBouncer extends AbstractActor {
 			}
 
 			if (batches.hasBatch(message.getBatchIdentifier())) {
-				List<EncodedRow> batch = batches.getBatch(message.getBatchIdentifier());
-				List<EncodedRow> clonedBatch = new ArrayList<>(batch);
-				this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), clonedBatch, 1, clonedBatch.size()), this.self());
+				EncodedRow[] batch = batches.getBatch(message.getBatchIdentifier());
+				EncodedRow[] clonedBatch = Arrays.copyOf(batch, batch.length);
+				this.sender().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), clonedBatch, 1), this.self());
 			} else {
 				// load data from other dataBouncer first
 				workerWaitsForBatch.add(new ActorWaitsForBatchModel(this.sender(), message.getBatchIdentifier()));
@@ -465,19 +462,19 @@ public class PeerDataBouncer extends AbstractActor {
 
 	private void handle(SendEncodedDataBatchMessage message) {
 		batches.addToBatch(message.getBatchIdentifier(), message.getBatch());
-		if (batches.getBatch(message.getBatchIdentifier()).size() == message.getCompleteRowCount()) {
+		if (batches.hasBatch(message.getBatchIdentifier())) {
 			// notify every other dataBouncer that I have the full batch
 			for (ActorRef actorRef : remoteDataBouncer) {
 				actorRef.tell(new AddBatchRouteMessage(message.getBatchIdentifier()), this.sender());
 			}
 
-			this.log.info("Received all splits for data batch {}, {} rows", message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()).size());
+//			this.log.info("Received all splits for data batch {}, {} rows", message.getBatchIdentifier(), batches.getBatch(message.getBatchIdentifier()).size());
 			batches.isBatchLoadingFinished(message.getBatchIdentifier());
 			for (int i = 0; i < workerWaitsForBatch.size(); i++) {
 				ActorWaitsForBatchModel waitFor = workerWaitsForBatch.get(i);
 				if (waitFor.getBatchIdentifier() == message.getBatchIdentifier()) {
-					List<EncodedRow> clonedBatch = new ArrayList<>(batches.getBatch(message.getBatchIdentifier()));
-					waitFor.getActor().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), clonedBatch, 1, clonedBatch.size()), this.self());
+					EncodedRow[] clonedBatch = Arrays.copyOf(batches.getBatch(message.getBatchIdentifier()), batches.getBatch(message.getBatchIdentifier()).length);
+					waitFor.getActor().tell(new SendEncodedDataBatchMessage(message.getBatchIdentifier(), clonedBatch, 1), this.self());
 					workerWaitsForBatch.remove(i);
 					i -= 1;
 				}
@@ -493,6 +490,6 @@ public class PeerDataBouncer extends AbstractActor {
 //		getContext().getSystem().actorOf(PeerTreeSearchWorker.props(this.sender(), message.getMinimalDifferenceSets(), message.getColumnsInTable(), message.getWorkerInCluster()), PeerTreeSearchWorker.DEFAULT_NAME + localWorker.size() + getActorSystemID());
 
 		getContext().stop(this.self());
-		this.log.info("Stop dataBouncer and create Reaper");
+//		this.log.info("Stop dataBouncer and create Reaper");
 	}
 }

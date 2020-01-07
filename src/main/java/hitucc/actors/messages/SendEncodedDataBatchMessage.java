@@ -14,7 +14,6 @@ import java.util.List;
 public class SendEncodedDataBatchMessage implements Serializable {
 	private static final long serialVersionUID = 8888332257249502029L;
 	private int batchIdentifier;
-	private List<EncodedRow> batch;
+	private EncodedRow[] batch;
 	private int currentSplit;
-	private int completeRowCount;
 }

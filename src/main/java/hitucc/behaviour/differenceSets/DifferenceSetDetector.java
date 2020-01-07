@@ -119,7 +119,7 @@ public class DifferenceSetDetector {
 			}
 		}
 
-		checkCachedDifferenceSetsBounds();
+//		checkCachedDifferenceSetsBounds();
 
 		return addStrategy.addDifferenceSet(bitSet);
 	}
@@ -139,7 +139,7 @@ public class DifferenceSetDetector {
 			}
 		}
 
-		checkCachedDifferenceSetsBounds();
+//		checkCachedDifferenceSetsBounds();
 
 		return addStrategy.addDifferenceSet(bitSet);
 	}

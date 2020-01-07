@@ -14,7 +14,7 @@ public class DictionaryEncoderTest {
 	public void beforeMethod() {
 		columnData = new String[]{"A", "B", "A", "C", "B"};
 		size = 5;
-		dictionaryEncoder = new DictionaryEncoder(size);
+		dictionaryEncoder = new DictionaryEncoder(size, true);
 
 		for (String value : columnData) {
 			dictionaryEncoder.addValue(value);
